@@ -51,27 +51,16 @@ class PersonalizeLearningResponse(BaseModel):
     recommended_mission: str
     learning_style: str
 
-class TopicPerformance(BaseModel):
-    topic: str
-    avg_score: float
-
-class PendingVerification(BaseModel):
-    student_name: str
-    mission_title: str
-
-class ParticipationEntry(BaseModel):
-    name: str
-    points: int
-
-class ClassInsightsRequest(BaseModel):
-    topic_performance: List[TopicPerformance]
-    pending_verifications: List[PendingVerification]
-    participation_top3: List[ParticipationEntry]
+class ActionItem(BaseModel):
+    priority: str
+    title: str
+    reason: str
+    recommended_action: str
 
 class ClassInsightsResponse(BaseModel):
     class_id: str
-    actions: List[str]
-    insufficient_data: bool
+    actions: List[ActionItem]
+    data_status: str  # "sufficient" | "insufficient" | "unavailable"
 
 # --- Routes ---
 
@@ -154,21 +143,16 @@ def verify_image(req: VerifyImageRequest):
         needs_teacher_review=bob_result["needs_teacher_review"],
     )
 
-@app.post("/class-insights/{class_id}", response_model=ClassInsightsResponse)
-def class_insights(class_id: str, req: ClassInsightsRequest):
+@app.get("/class-insights/{class_id}", response_model=ClassInsightsResponse)
+def class_insights(class_id: str):
     """
-    Calls IBM Bob to generate a prioritised action list for a teacher, scoped to one class.
-    If Bob is unavailable or returns unparseable output, returns a clear
-    'insights unavailable' response — never fabricates actions.
+    Fetches aggregate class data from the Express server, calls IBM Bob, and
+    returns up to 3 prioritised structured actions for the teacher.
+    The frontend sends only a class_id — never raw student data.
+    data_status is "sufficient", "insufficient" (unknown class / sparse data),
+    or "unavailable" (Bob credentials missing / network error).
     """
-    from types import SimpleNamespace
-    scoped = SimpleNamespace(
-        class_id=class_id,
-        topic_performance=req.topic_performance,
-        pending_verifications=req.pending_verifications,
-        participation_top3=req.participation_top3,
-    )
-    return ClassInsightsResponse(**get_class_insights(scoped))
+    return ClassInsightsResponse(**get_class_insights(class_id))
 
 
 @app.post("/personalize-learning", response_model=PersonalizeLearningResponse)

@@ -119,6 +119,7 @@ const aiApi = axios.create({ baseURL: AI_BASE });
 export const aiAPI = {
   verifyImage: (data) => aiApi.post('/verify-image', data),
   personalizeLearning: (data) => aiApi.post('/personalize-learning', data),
+  getClassInsights: (classId) => aiApi.get(`/class-insights/${classId}`),
   chat: (data) => api.post('/ai/chat', data),
 };
 

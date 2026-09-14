@@ -190,6 +190,30 @@ app.get('/api/analytics/platform', (req, res) => {
   res.json({ totalSchools: 128, totalStudents: 42850, totalTeachers: 2340, activeCompetitions: 16 });
 });
 
+// Aggregate class summary — only numbers, no student names.
+// Used by ai-service to build the Bob prompt for teacher insights.
+const CLASS_ANALYTICS = {
+  c1: {
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 68 },
+      { topic: 'Waste Management',   avg_score: 82 },
+      { topic: 'Water Conservation', avg_score: 55 },
+    ],
+    pending_verification_count: 1,
+    participation_trend: [
+      { week: 'Week 1', active_students: 28 },
+      { week: 'Week 2', active_students: 31 },
+      { week: 'Week 3', active_students: 27 },
+    ],
+  },
+};
+
+app.get('/api/analytics/class/:id', (req, res) => {
+  const data = CLASS_ANALYTICS[req.params.id];
+  if (!data) return res.status(404).json({ error: 'Class not found' });
+  res.json(data);
+});
+
 // --- SOCKET.IO ---
 let io;
 try {

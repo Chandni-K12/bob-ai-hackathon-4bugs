@@ -2,12 +2,18 @@
 insight_service.py — IBM Bob (watsonx.ai) call for teacher class insights.
 
 Flow:
-  1. Build a compact, class-scoped context from the request.
-  2. Send a focused prompt to IBM Bob via ModelInference.generate_text.
-  3. Parse the JSON object from Bob's reply.
-  4. Validate the single required field ("actions") is a non-empty list of strings.
-  5. On ANY failure (missing credentials, network error, bad JSON, missing/empty key)
-     return a clear "service unavailable" response — never fabricate insights.
+  1. Fetch aggregate class summary from the Express server
+     (GET /api/analytics/class/{class_id}).  Never fetches individual student records.
+  2. If the summary is missing, the class is unknown, or the summary is too sparse
+     to reason about, return data_status="insufficient" without calling Bob.
+  3. Build a compact, class-scoped prompt — aggregate numbers only, no student names.
+  4. Send to IBM Bob via ModelInference.generate_text (same pattern as mentor_service.py).
+  5. Parse and validate: up to 3 structured action objects with keys
+     priority, title, reason, recommended_action.
+  6. If pending_verification_count > 0, at least one parsed action must have
+     priority="high" — otherwise return data_status="unavailable".
+  7. On ANY other failure (missing credentials, network error, bad JSON, missing keys)
+     return data_status="unavailable" — never fabricate insights.
 """
 from __future__ import annotations
 
@@ -16,6 +22,7 @@ import logging
 import os
 import re
 
+import requests as http_requests
 from dotenv import load_dotenv
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
@@ -29,21 +36,31 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _DEFAULT_MODEL = "ibm/granite-3-8b-instruct"
+_SERVER_BASE = os.environ.get("SERVER_BASE_URL", "http://localhost:5000")
 
-_UNABLE_ACTIONS = ["Insights unavailable — IBM Bob is currently unavailable or returned an unexpected response. Please try again shortly."]
+_ACTION_KEYS = {"priority", "title", "reason", "recommended_action"}
+_VALID_PRIORITIES = {"high", "medium", "low"}
 
-_UNABLE_RESPONSE_TEMPLATE = {
-    "actions": _UNABLE_ACTIONS,
-    "insufficient_data": True,
+_UNAVAILABLE_RESPONSE = {
+    "actions": [],
+    "data_status": "unavailable",
 }
 
 _PROMPT_TEMPLATE = """\
 You are a teacher assistant for an environmental education platform.
-Given the class context below, return a JSON object with exactly this key:
-  actions — a list of 3 to 5 short, prioritised action strings for the teacher (array of strings)
+Given the class summary below, return a JSON object with exactly this key:
+  actions — a list of at most 3 prioritised action objects for the teacher
 
-Each action must be specific and directly grounded in the data provided.
-If the data is insufficient to form a specific action, say so honestly in that action string.
+Each action object must have exactly these keys:
+  priority           — one of: high, medium, low
+  title              — a short 3-6 word label (string)
+  reason             — one sentence grounded in the numbers provided (string)
+  recommended_action — one concrete sentence the teacher should do (string)
+
+Rules:
+- Base every action strictly on the numbers in the context. Do not invent issues.
+- If the data is too sparse to support 3 actions, return fewer.
+- pending_verification_count > 0 always warrants at least one high-priority action.
 
 Class context:
 {context_json}
@@ -53,88 +70,62 @@ Return only valid JSON. No explanation, no markdown, no text outside the JSON ob
 
 
 # ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def get_class_insights(req) -> dict:
-    """
-    Call IBM Bob to produce a prioritised action list for a teacher, scoped to one class.
-
-    Returns a dict with keys:
-      class_id         — echoed from the request
-      actions          — list of action strings (3-5 from Bob, or 1 unavailability string)
-      insufficient_data — True when the fallback was returned
-
-    On any failure, returns a clear "service unavailable" dict instead of
-    fabricating insights.
-    """
-    # Step 1 — check credentials exist before attempting a network call
-    api_key = os.environ.get("WATSONX_API_KEY", "")
-    project_id = os.environ.get("WATSONX_PROJECT_ID", "")
-    url = os.environ.get("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
-    model_id = os.environ.get("WATSONX_MODEL_ID", _DEFAULT_MODEL)
-
-    if not api_key or not project_id:
-        logger.warning(
-            "WATSONX_API_KEY or WATSONX_PROJECT_ID not set — "
-            "returning service-unavailable response."
-        )
-        return {**_UNABLE_RESPONSE_TEMPLATE, "class_id": req.class_id}
-
-    # Step 2 — build compact, class-scoped context
-    context = {
-        "class_id": req.class_id,
-        "topic_performance": [
-            {"topic": t.topic, "avg_score": t.avg_score}
-            for t in req.topic_performance
-        ],
-        "pending_verifications": [
-            {"student": v.student_name, "mission": v.mission_title}
-            for v in req.pending_verifications
-        ],
-        "participation_top3": [
-            {"name": p.name, "points": p.points}
-            for p in req.participation_top3
-        ],
-    }
-    prompt = _PROMPT_TEMPLATE.format(context_json=json.dumps(context, ensure_ascii=False))
-
-    # Step 3 — call IBM Bob
-    try:
-        model = ModelInference(
-            model_id=model_id,
-            credentials=Credentials(api_key=api_key, url=url),
-            project_id=project_id,
-        )
-        raw_text: str = model.generate_text(prompt=prompt)
-    except Exception as exc:
-        logger.warning("IBM Bob call failed: %s — returning service-unavailable response.", exc)
-        return {**_UNABLE_RESPONSE_TEMPLATE, "class_id": req.class_id}
-
-    # Step 4 — parse and validate
-    parsed = _parse_bob_response(raw_text)
-    if parsed is None:
-        logger.warning(
-            "IBM Bob returned unparseable output — returning service-unavailable response. "
-            "Raw output: %.200s", raw_text
-        )
-        return {**_UNABLE_RESPONSE_TEMPLATE, "class_id": req.class_id}
-
-    return {"class_id": req.class_id, "actions": parsed, "insufficient_data": False}
-
-
-# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _parse_bob_response(text: str) -> list[str] | None:
+def _is_summary_usable(summary: dict) -> bool:
     """
-    Extract the first JSON object from Bob's text output, validate that "actions"
-    is a non-empty list of non-empty strings, and return that list — or None if
-    anything is missing or malformed.
+    Return True only when the summary contains enough signal to ask Bob.
+
+    A summary is usable when at least ONE of these holds:
+      - topic_avg_scores has at least one entry with a numeric avg_score
+      - pending_verification_count is a positive integer
+      - participation_trend has at least one entry
+
+    Everything else (empty dict, all-empty lists, zero count) is treated as
+    insufficient — Bob would have nothing concrete to act on.
     """
-    # Find the first {...} block (Bob sometimes wraps in markdown fences)
-    match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
+    topic_scores = summary.get("topic_avg_scores") or []
+    has_topics = any(
+        isinstance(t.get("avg_score"), (int, float))
+        for t in topic_scores
+        if isinstance(t, dict)
+    )
+    pending = summary.get("pending_verification_count", 0)
+    has_pending = isinstance(pending, int) and pending > 0
+    trend = summary.get("participation_trend") or []
+    has_trend = isinstance(trend, list) and len(trend) > 0
+
+    return has_topics or has_pending or has_trend
+
+
+def _fetch_class_summary(class_id: str) -> dict | None:
+    """
+    GET /api/analytics/class/{class_id} from the Express server.
+    Returns the parsed dict, or None if the class is unknown (404) or
+    any network/parse error occurs.
+    """
+    url = f"{_SERVER_BASE}/api/analytics/class/{class_id}"
+    try:
+        resp = http_requests.get(url, timeout=5)
+        if resp.status_code == 404:
+            logger.info("Class %s not found in server (404).", class_id)
+            return None
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        logger.warning("Failed to fetch class summary for %s: %s", class_id, exc)
+        return None
+
+
+def _parse_bob_response(text: str) -> list[dict] | None:
+    """
+    Extract the first JSON object from Bob's text, validate that "actions" is a
+    list of dicts each containing the four required keys as non-empty strings,
+    and return at most 3 normalised action dicts — or None on any problem.
+    """
+    # Bob sometimes wraps output in markdown fences; find the outermost {...}
+    match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         return None
 
@@ -147,8 +138,108 @@ def _parse_bob_response(text: str) -> list[str] | None:
     if not isinstance(actions, list) or not actions:
         return None
 
-    # Every item must be a non-empty string
-    if not all(isinstance(a, str) and a.strip() for a in actions):
-        return None
+    validated: list[dict] = []
+    for item in actions:
+        if not isinstance(item, dict):
+            return None
+        for key in _ACTION_KEYS:
+            val = item.get(key)
+            if not isinstance(val, str) or not val.strip():
+                return None
+        priority = item["priority"].strip().lower()
+        if priority not in _VALID_PRIORITIES:
+            priority = "medium"
+        validated.append({
+            "priority": priority,
+            "title": item["title"].strip(),
+            "reason": item["reason"].strip(),
+            "recommended_action": item["recommended_action"].strip(),
+        })
+        if len(validated) == 3:
+            break  # cap at 3
 
-    return [a.strip() for a in actions]
+    return validated if validated else None
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def get_class_insights(class_id: str) -> dict:
+    """
+    Fetch aggregate class data, call IBM Bob, return structured actions.
+
+    Returns a dict with keys:
+      class_id    — echoed
+      actions     — list of action dicts (up to 3) or []
+      data_status — "sufficient" | "insufficient" | "unavailable"
+
+    Never fabricates insights. Never exposes individual student names to Bob.
+    """
+    # Step 1 — fetch aggregate summary (no credentials needed for this)
+    summary = _fetch_class_summary(class_id)
+    if summary is None:
+        return {"class_id": class_id, "actions": [], "data_status": "insufficient"}
+
+    # Step 1b — reject summaries that are too sparse to reason about
+    if not _is_summary_usable(summary):
+        logger.info("Class %s summary is too sparse — returning insufficient.", class_id)
+        return {"class_id": class_id, "actions": [], "data_status": "insufficient"}
+
+    # Step 2 — check Bob credentials before attempting a network call
+    api_key = os.environ.get("WATSONX_API_KEY", "")
+    project_id = os.environ.get("WATSONX_PROJECT_ID", "")
+    url = os.environ.get("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+    model_id = os.environ.get("WATSONX_MODEL_ID", _DEFAULT_MODEL)
+
+    if not api_key or not project_id:
+        logger.warning(
+            "WATSONX_API_KEY or WATSONX_PROJECT_ID not set — "
+            "returning unavailable response."
+        )
+        return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+
+    # Step 3 — build compact, aggregate-only context (no student names)
+    context = {
+        "class_id": class_id,
+        "topic_avg_scores": summary.get("topic_avg_scores", []),
+        "pending_verification_count": summary.get("pending_verification_count", 0),
+        "participation_trend": summary.get("participation_trend", []),
+    }
+    prompt = _PROMPT_TEMPLATE.format(context_json=json.dumps(context, ensure_ascii=False))
+
+    # Step 4 — call IBM Bob
+    try:
+        model = ModelInference(
+            model_id=model_id,
+            credentials=Credentials(api_key=api_key, url=url),
+            project_id=project_id,
+        )
+        raw_text: str = model.generate_text(prompt=prompt)
+    except Exception as exc:
+        logger.warning("IBM Bob call failed: %s — returning unavailable response.", exc)
+        return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+
+    # Step 5 — parse and validate
+    parsed = _parse_bob_response(raw_text)
+    if parsed is None:
+        logger.warning(
+            "IBM Bob returned unparseable output — returning unavailable response. "
+            "Raw output: %.200s", raw_text
+        )
+        return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+
+    # Step 6 — when there are pending verifications, Bob MUST flag at least one
+    # action as high priority. If it didn't, treat the output as invalid rather
+    # than silently returning actions that miss the most urgent issue.
+    pending_count = summary.get("pending_verification_count", 0)
+    if pending_count > 0:
+        has_high = any(a["priority"] == "high" for a in parsed)
+        if not has_high:
+            logger.warning(
+                "pending_verification_count=%d but Bob returned no high-priority action "
+                "— returning unavailable to avoid fabrication.", pending_count
+            )
+            return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+
+    return {"class_id": class_id, "actions": parsed, "data_status": "sufficient"}
