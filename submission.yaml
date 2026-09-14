@@ -9,47 +9,54 @@
 # =============================================================================
 
 team:
-  name: ""                             # REQUIRED — e.g., "Orion Squad"
-  track: ""                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  name: "4 Bugs"                             # REQUIRED — e.g., "Orion Squad"
+  track: "AI | Sustainability"                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
-    name: ""                           # REQUIRED — e.g., "Alice Chen"
-    email: ""                          # REQUIRED — e.g., "alice.chen@ibm.com"
+    name: "Hima Mehta"                           # REQUIRED — e.g., "Alice Chen"
+    email: "mehtahima1510@gmail.com"                          # REQUIRED — e.g., "alice.chen@ibm.com"
   members:
-    - name: ""                         # REQUIRED — Team member 1
-      email: ""
-    - name: ""                         # Add more members by copying the two lines above
-      email: ""
-    - name: ""
-      email: ""
+    - name: "Chandni Kothari"                         # REQUIRED — Team member 1
+      email: "kotharichandni183@gmail.com"
+    - name: "Akshara Pandya"                         # Add more members by copying the two lines above
+      email: "pandyaakshara09@gmail.com"
+    - name: "Kairavi Padhariya"
+      email: "kairavipadhariya@gmail.com"
 
 submission:
-  title: ""                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
+  title: "GenGreen — Gamified Environmental Education Platform"                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
 
   problem_statement: >                 # REQUIRED — 1-3 sentences. What problem? Who has it?
     Replace this text with a concise description of the real-world problem
     your project addresses and who experiences it.
 
   solution_summary: >                  # REQUIRED — 1-3 sentences. What did you build?
-    Replace this text with a clear description of your solution
-    and how it addresses the problem above.
+    GenGreen gamifies environmental learning through a learn -> play -> complete
+    missions -> AI verify -> earn points -> compete loop, with IBM Bob as the
+    reasoning layer across three touchpoints: personalizing each student's next
+    topic/mission, explaining and sanity-checking mission evidence submissions
+    alongside a deterministic match check, and turning a teacher's class data into
+    a short prioritized action list.
+
 
   key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
-    - ""                               # e.g., "Real-time pipeline anomaly detection using watsonx.ai"
-    - ""
-    - ""
-    - ""                               # optional 4th
-    - ""                               # optional 5th
+    - "IBM Bob-powered AI Eco Mentor that recommends a student's next topic and mission with a data-grounded reason"
+    - "Deterministic mission-evidence verification with an IBM Bob-generated plain-language explanation and a needs_teacher_review flag for borderline cases"
+    - "IBM Bob-generated teacher class insights: a short, honest, prioritized action list built from real class performance data"
+    - "Scenario-based quizzes and an Eco Crossword game for active learning, not passive reading"
+    - "Role-based dashboards (student/teacher/organizer) with real-time-style leaderboards, badges, streaks and Green Score"
 
   tech_stack:
-    languages: []                      # REQUIRED — e.g., ["Python", "TypeScript"]
-    frameworks: []                     # e.g., ["FastAPI", "React"]
-    ibm_technologies: []               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
+    languages: ["JavaScript", "Python"]                      # REQUIRED — e.g., ["Python", "TypeScript"]
+    frameworks: ["React", "Vite", "Tailwind CSS", "Express.js", "FastAPI"]                     # e.g., ["FastAPI", "React"]
+    ibm_technologies: ["IBM Bob"]               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
     databases: []                      # e.g., ["PostgreSQL", "Redis"]
     other: []                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
 
   what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
-    Replace with what aspect of the submission you consider strongest
-    and want judges to pay special attention to.
+    Bob is genuinely load-bearing, not name-dropped: the mission-verification decision
+    stays a deterministic rule (so it's auditable and can't be talked into a false
+    pass), while Bob owns the explanation, personalization, and prioritization layer
+    on top of it — the same pattern used across all three AI touchpoints in the app.
 
   known_limitations: >                 # Optional but recommended — be honest about gaps
     Replace with any known limitations, incomplete features,
