@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockMissions } from '../../data/mockData';
-import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle } from 'lucide-react';
-import { aiAPI } from '../../services/api';
+import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
+import { aiAPI, tasksAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
@@ -190,11 +191,45 @@ function VerificationModal({ mission, onClose }) {
   );
 }
 
+// Convert a teacher-assigned task into the same shape MissionsPage expects
+function taskToMission(t) {
+  return {
+    id: t.id,
+    title: t.task,
+    icon: '📋',
+    description: `${t.envTopic} task assigned by your teacher.${t.syllabus ? ` Syllabus: ${t.syllabus}.` : ''}`,
+    status: t.status === 'in_progress' ? 'in_progress' : 'not_started',
+    color: '#3b82f6',
+    progress: t.completed || 0,
+    total: t.students || 1,
+    deadline: t.deadline || '',
+    difficulty: t.difficulty || 'Medium',
+    points: t.points || 100,
+    topic: t.envTopic || '',
+    fromTeacher: true,
+  };
+}
+
 export default function MissionsPage() {
+  const { user } = useAuth();
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
 
-  const filtered = mockMissions.filter(m => filter === 'all' || m.status === filter);
+  // Merge teacher-assigned tasks into the missions list
+  const [teacherTasks, setTeacherTasks] = useState([]);
+  useEffect(() => {
+    const classId = user?.className || '8-A';
+    tasksAPI.getByClass(classId)
+      .then(res => {
+        const tasks = (res.data || []).filter(t => t.status !== 'completed');
+        setTeacherTasks(tasks.map(taskToMission));
+      })
+      .catch(() => {});
+  }, [user]);
+
+  // Teacher tasks shown first (with a badge), then regular missions
+  const allMissions = [...teacherTasks, ...mockMissions];
+  const filtered = allMissions.filter(m => filter === 'all' || m.status === filter);
 
   const statusColors = {
     in_progress: 'bg-eco-blue/10 text-eco-blue',
@@ -219,7 +254,7 @@ export default function MissionsPage() {
         {['all', 'in_progress', 'not_started', 'completed'].map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-xs font-medium capitalize whitespace-nowrap transition ${filter === f ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
-            {f.replace('_', ' ')} {f !== 'all' && `(${mockMissions.filter(m => f === 'all' || m.status === f).length})`}
+            {f.replace('_', ' ')} {f !== 'all' && `(${allMissions.filter(m => m.status === f).length})`}
           </button>
         ))}
       </motion.div>
@@ -231,7 +266,14 @@ export default function MissionsPage() {
             <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10" style={{ background: mission.color }} />
             <div className="flex items-center justify-between mb-3">
               <span className="text-3xl">{mission.icon}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[mission.status]}`}>{statusLabels[mission.status]}</span>
+              <div className="flex items-center gap-1.5">
+                {mission.fromTeacher && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-eco-blue/15 text-eco-blue flex items-center gap-1">
+                    <ClipboardList className="w-3 h-3" /> Teacher
+                  </span>
+                )}
+                <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[mission.status]}`}>{statusLabels[mission.status]}</span>
+              </div>
             </div>
             <h3 className="font-semibold mb-1">{mission.title}</h3>
             <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{mission.description}</p>

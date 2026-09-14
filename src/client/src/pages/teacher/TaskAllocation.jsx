@@ -1,16 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, CheckCircle2, Calendar, Zap, Plus } from 'lucide-react';
+import { tasksAPI } from '../../services/api';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
-
-const existingTasks = [
-  { id: 1, class: '8-A', syllabus: 'Water Resources', envTopic: 'Water Conservation', task: 'Water Conservation Scenario Quiz', deadline: '2026-08-25', points: 100, status: 'assigned', students: 40, completed: 12 },
-  { id: 2, class: '8-A', syllabus: 'Natural Vegetation', envTopic: 'Biodiversity', task: 'Biodiversity Explorer Mission', deadline: '2026-08-28', points: 150, status: 'in_progress', students: 40, completed: 28 },
-  { id: 3, class: '8-B', syllabus: 'Minerals', envTopic: 'Renewable Energy', task: 'Energy Audit Assignment', deadline: '2026-08-22', points: 120, status: 'overdue', students: 38, completed: 15 },
-  { id: 4, class: '8-A', syllabus: 'Pollution', envTopic: 'Waste Management', task: 'Waste Segregation Challenge', deadline: '2026-08-20', points: 80, status: 'completed', students: 40, completed: 40 },
-];
 
 const statusColors = {
   assigned: 'bg-eco-blue/10 text-eco-blue',
@@ -19,17 +13,44 @@ const statusColors = {
   overdue: 'bg-destructive/10 text-destructive',
 };
 
+// Default tasks — mirrors the server seed so the page is never blank
+// even when the Express server is not running.
+const DEFAULT_TASKS = [
+  { id: 't1', classId: '8-A', syllabus: 'Water Resources',    envTopic: 'Water Conservation', task: 'Water Conservation Scenario Quiz', deadline: '2026-08-25', points: 100, difficulty: 'Medium', status: 'assigned',     students: 40, completed: 12 },
+  { id: 't2', classId: '8-A', syllabus: 'Natural Vegetation', envTopic: 'Biodiversity',        task: 'Biodiversity Explorer Mission',    deadline: '2026-08-28', points: 150, difficulty: 'Medium', status: 'in_progress', students: 40, completed: 28 },
+  { id: 't3', classId: '8-B', syllabus: 'Minerals',           envTopic: 'Renewable Energy',    task: 'Energy Audit Assignment',          deadline: '2026-08-22', points: 120, difficulty: 'Hard',   status: 'overdue',     students: 38, completed: 15 },
+  { id: 't4', classId: '8-A', syllabus: 'Pollution',          envTopic: 'Waste Management',    task: 'Waste Segregation Challenge',      deadline: '2026-08-20', points:  80, difficulty: 'Easy',   status: 'completed',   students: 40, completed: 40 },
+];
+
 export default function TaskAllocation() {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ class: '8-A', syllabus: '', envTopic: '', task: '', difficulty: 'Medium', deadline: '', points: 100 });
-  const [tasks, setTasks] = useState(existingTasks);
+  const [form, setForm] = useState({ classId: '8-A', syllabus: '', envTopic: '', task: '', difficulty: 'Medium', deadline: '', points: 100 });
+  // Pre-seed with defaults so the list is visible immediately, even offline.
+  const [tasks, setTasks] = useState(DEFAULT_TASKS);
   const [assigned, setAssigned] = useState(false);
 
-  const handleAssign = (e) => {
+  // Try to load live tasks from the backend; overwrite defaults if server responds.
+  useEffect(() => {
+    tasksAPI.getAll()
+      .then(res => { if (res.data?.length) setTasks(res.data); })
+      .catch(() => {}); // server offline → defaults remain, no crash
+  }, []);
+
+  const handleAssign = async (e) => {
     e.preventDefault();
-    setTasks([...tasks, { ...form, id: tasks.length + 1, status: 'assigned', students: 40, completed: 0 }]);
+    try {
+      const res = await tasksAPI.create(form);
+      setTasks(prev => [...prev, res.data]);
+    } catch {
+      // Server offline — add locally so the UI still responds
+      setTasks(prev => [...prev, { ...form, id: 'local_' + Date.now(), status: 'assigned', students: 40, completed: 0 }]);
+    }
     setAssigned(true);
-    setTimeout(() => { setAssigned(false); setShowForm(false); setForm({ class: '8-A', syllabus: '', envTopic: '', task: '', difficulty: 'Medium', deadline: '', points: 100 }); }, 2000);
+    setTimeout(() => {
+      setAssigned(false);
+      setShowForm(false);
+      setForm({ classId: '8-A', syllabus: '', envTopic: '', task: '', difficulty: 'Medium', deadline: '', points: 100 });
+    }, 2000);
   };
 
   return (
@@ -58,7 +79,7 @@ export default function TaskAllocation() {
             <form onSubmit={handleAssign} className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Class</label>
-                <select value={form.class} onChange={e => setForm({...form, class: e.target.value})}
+                <select value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
                   className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm outline-none focus:border-primary">
                   <option>8-A</option><option>8-B</option><option>9-A</option>
                 </select>
@@ -125,7 +146,7 @@ export default function TaskAllocation() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-secondary font-medium">Class {task.class}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-secondary font-medium">Class {task.classId || task.class}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${statusColors[task.status]}`}>{task.status.replace('_', ' ')}</span>
                 </div>
                 <h3 className="font-semibold text-sm">{task.task}</h3>

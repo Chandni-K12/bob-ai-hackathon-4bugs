@@ -1,11 +1,13 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { mockMissions, mockTopics, mockGreenScore, mockNotifications } from '../../data/mockData';
+import { mockMissions, mockTopics, mockGreenScore } from '../../data/mockData';
 import { formatNumber } from '../../lib/utils';
 import { Link } from 'react-router-dom';
+import { tasksAPI } from '../../services/api';
 import {
   Zap, Flame, Trophy, School, Target, BookOpen, Award,
-  TrendingUp, ArrowRight, Star, ChevronRight
+  TrendingUp, ArrowRight, Star, ChevronRight, ClipboardList
 } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -47,6 +49,22 @@ export default function StudentDashboard() {
   const streakWeeks = weeks.map((_, index) => index < Math.min(user?.streak || 1, weeks.length));
   const activeMissions = mockMissions.filter(m => m.status === 'in_progress').slice(0, 3);
   const recentTopics = mockTopics.slice(0, 4);
+
+  // Teacher-assigned tasks — pre-seeded so the section is visible even offline.
+  const DEFAULT_ASSIGNED = [
+    { id: 't1', classId: '8-A', envTopic: 'Water Conservation', task: 'Water Conservation Scenario Quiz', deadline: '2026-08-25', points: 100, status: 'assigned' },
+    { id: 't2', classId: '8-A', envTopic: 'Biodiversity',        task: 'Biodiversity Explorer Mission',    deadline: '2026-08-28', points: 150, status: 'in_progress' },
+  ];
+  const [assignedTasks, setAssignedTasks] = useState(DEFAULT_ASSIGNED);
+  useEffect(() => {
+    const classId = user?.className || '8-A';
+    tasksAPI.getByClass(classId)
+      .then(res => {
+        const live = res.data.filter(t => t.status !== 'completed').slice(0, 3);
+        if (live.length) setAssignedTasks(live);
+      })
+      .catch(() => {}); // server offline → defaults remain
+  }, [user]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">
@@ -92,6 +110,39 @@ export default function StudentDashboard() {
           ))}
         </div>
       </motion.div>
+
+      {/* Teacher-Assigned Tasks — only shown when the server returns data */}
+      {assignedTasks.length > 0 && (
+        <motion.div variants={item} className="glass rounded-xl p-5 border-l-4 border-eco-blue">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-eco-blue" /> Tasks Assigned by Teacher
+            </h3>
+            <Link to="/student/missions" className="text-sm text-primary hover:underline flex items-center gap-1">
+              View All <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {assignedTasks.map(t => (
+              <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-eco-blue/5 border border-eco-blue/10">
+                <div className="w-10 h-10 rounded-xl bg-eco-blue/10 flex items-center justify-center text-lg shrink-0">
+                  📋
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{t.task}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t.envTopic}{t.deadline ? ` · Due ${new Date(t.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : ''}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-eco-green font-medium">+{t.points} pts</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full capitalize ${
+                    t.status === 'overdue' ? 'bg-destructive/10 text-destructive' : 'bg-eco-blue/10 text-eco-blue'
+                  }`}>{t.status.replace('_', ' ')}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Active Missions */}

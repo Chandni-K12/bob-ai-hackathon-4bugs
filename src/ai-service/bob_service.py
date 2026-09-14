@@ -1,7 +1,7 @@
 """
 bob_service.py
 --------------
-Thin wrapper around the IBM Bob inference API.
+Thin wrapper around IBM Bob (watsonx.ai) for the verify-image explanation layer.
 
 Responsibility: take the ALREADY COMPUTED deterministic verification result
 (mission_type, detected_objects, confidence, verified) and ask Bob to produce:
@@ -11,27 +11,38 @@ Responsibility: take the ALREADY COMPUTED deterministic verification result
 
 The deterministic `verified` bool is passed IN and must never be altered here.
 If Bob is unavailable, a rule-based fallback is returned so the endpoint never fails.
+
+Credentials used (same as mentor_service.py — no extra keys needed):
+  WATSONX_API_KEY      — IBM Cloud API key
+  WATSONX_PROJECT_ID   — watsonx.ai project ID
+  WATSONX_URL          — defaults to https://us-south.ml.cloud.ibm.com
+  WATSONX_MODEL_ID     — defaults to ibm/granite-3-8b-instruct
 """
 
 import json
 import logging
 import os
+import re
 from typing import Optional
 
-import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration — reads the same WATSONX_* vars used by mentor_service.py
 # ---------------------------------------------------------------------------
 
-# Read at call-time (not module-load-time) so tests can patch os.environ freely.
-def _get_api_key() -> Optional[str]:
-    return os.getenv("BOB_API_KEY")
-
-def _get_endpoint() -> str:
-    return os.getenv("BOB_API_ENDPOINT", "https://api.bob.ibm.com/v1").rstrip("/")
+def _get_credentials() -> tuple[str, str, str, str]:
+    """Return (api_key, project_id, url, model_id). Empty strings if not set."""
+    return (
+        os.getenv("WATSONX_API_KEY", ""),
+        os.getenv("WATSONX_PROJECT_ID", ""),
+        os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
+        os.getenv("WATSONX_MODEL_ID", "ibm/granite-3-8b-instruct"),
+    )
 
 # Confidence band that triggers manual teacher review regardless of pass/fail
 _BORDERLINE_LOW = 0.70
@@ -93,36 +104,38 @@ Respond ONLY with valid JSON in this exact format:
 
 
 # ---------------------------------------------------------------------------
-# Bob API call
+# Bob API call — uses ibm-watsonx-ai SDK (same as mentor_service.py)
 # ---------------------------------------------------------------------------
 
 def _call_bob(prompt: str) -> dict:
     """
-    POST to the Bob inference chat-completions endpoint.
-    Returns parsed JSON or raises on network/API error.
+    Call IBM Bob via the watsonx.ai ModelInference SDK.
+    Returns a parsed dict with student_explanation and teacher_explanation.
+    Raises on any error so the caller can fall back gracefully.
     """
-    url = f"{_get_endpoint()}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {_get_api_key()}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": "ibm/granite-3-8b-instruct",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 256,
-        "temperature": 0.3,
-    }
-    response = requests.post(url, headers=headers, json=payload, timeout=15)
-    response.raise_for_status()
-    data = response.json()
-    content = data["choices"][0]["message"]["content"].strip()
-    # Bob may wrap JSON in a markdown code fence — strip it
-    if content.startswith("```"):
-        lines = content.splitlines()
-        content = "\n".join(
-            l for l in lines if not l.startswith("```")
-        ).strip()
-    return json.loads(content)
+    from ibm_watsonx_ai import Credentials
+    from ibm_watsonx_ai.foundation_models import ModelInference
+
+    api_key, project_id, url, model_id = _get_credentials()
+    model = ModelInference(
+        model_id=model_id,
+        credentials=Credentials(api_key=api_key, url=url),
+        project_id=project_id,
+    )
+    raw: str = model.generate_text(prompt=prompt)
+
+    # Strip optional markdown code fence that some model versions add
+    clean = raw.strip()
+    if clean.startswith("```"):
+        clean = re.sub(r"^```[a-z]*\n?", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"\n?```$", "", clean).strip()
+
+    # Extract the first {...} block (model may add surrounding prose)
+    match = re.search(r"\{.*?\}", clean, re.DOTALL)
+    if not match:
+        raise ValueError(f"No JSON object found in Bob output: {raw[:200]!r}")
+
+    return json.loads(match.group())
 
 
 # ---------------------------------------------------------------------------
@@ -184,9 +197,11 @@ def explain_verification(
     """
     needs_review = _BORDERLINE_LOW <= confidence <= _BORDERLINE_HIGH
 
-    if not _get_api_key():
+    api_key, project_id, *_ = _get_credentials()
+    if not api_key or not project_id:
         logger.warning(
-            "BOB_API_KEY not set — using fallback explanations for verify-image"
+            "WATSONX_API_KEY or WATSONX_PROJECT_ID not set — "
+            "using fallback explanations for verify-image"
         )
         explanations = _fallback_explanations(
             mission_type, detected_objects, confidence, verified

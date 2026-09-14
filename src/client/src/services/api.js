@@ -113,6 +113,13 @@ export const pointsAPI = {
   getHistory: (userId) => api.get(`/points/history/${userId}`),
 };
 
+// Tasks (teacher assigns → student sees)
+export const tasksAPI = {
+  getByClass: (classId) => api.get('/tasks', { params: { classId } }),
+  getAll: () => api.get('/tasks'),
+  create: (data) => api.post('/tasks', data),
+};
+
 // AI Service
 const aiApi = axios.create({ baseURL: AI_BASE });
 
