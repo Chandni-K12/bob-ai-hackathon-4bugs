@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import random
 
+import bob_service
+
 app = FastAPI(title="GenGreen AI Service", version="1.0.0")
 
 app.add_middleware(
@@ -26,6 +28,10 @@ class VerifyImageResponse(BaseModel):
     detected_objects: List[str]
     message: str
     segregation: Optional[dict] = None
+    # Bob-generated explanation fields (None when Bob is unavailable)
+    student_explanation: Optional[str] = None
+    teacher_explanation: Optional[str] = None
+    needs_teacher_review: bool = False
 
 class TopicScore(BaseModel):
     topic: str
@@ -52,18 +58,23 @@ def root():
 @app.post("/verify-image", response_model=VerifyImageResponse)
 def verify_image(req: VerifyImageRequest):
     """
-    Mock YOLO/Vision model verification.
-    In production: receives image URL -> runs through YOLO -> returns detection results.
+    Deterministic mission verification with IBM Bob explanation layer.
+
+    Step 1 — deterministic: map mission_type to expected objects + confidence.
+              The verified/confidence result is authoritative and is NOT changed
+              by Bob.
+    Step 2 — Bob: send the structured result to IBM Bob and ask for human-
+              readable explanations for the student and the teacher.
+              message is populated from the Bob student_explanation (or fallback).
+              needs_teacher_review is set for borderline confidence (0.70–0.80).
     """
     mission_responses = {
         "tree_plantation": {
             "detected_objects": ["Tree sapling", "Soil", "Gardening tools"],
-            "message": "Tree plantation activity detected",
             "confidence": 0.94,
         },
         "waste_segregation": {
             "detected_objects": ["Paper → Dry Waste", "Plastic → Dry Waste", "Organic Waste → Wet Waste"],
-            "message": "Waste segregation detected with proper categorization",
             "confidence": 0.91,
             "segregation": {
                 "dry_waste": ["Paper", "Plastic", "Cardboard"],
@@ -73,33 +84,50 @@ def verify_image(req: VerifyImageRequest):
         },
         "water_conservation": {
             "detected_objects": ["Water meter", "Low-flow faucet", "Collection system"],
-            "message": "Water conservation setup detected",
             "confidence": 0.87,
         },
         "clean_campus": {
             "detected_objects": ["Group activity", "Cleaning supplies", "Campus area"],
-            "message": "Campus cleaning activity detected",
             "confidence": 0.96,
         },
         "green_transport": {
             "detected_objects": ["Bicycle", "Walking path"],
-            "message": "Green transport activity detected",
             "confidence": 0.89,
         },
     }
 
     response_data = mission_responses.get(req.mission_type, {
         "detected_objects": ["Environmental activity"],
-        "message": "Environmental activity detected",
         "confidence": round(random.uniform(0.75, 0.98), 2),
     })
 
+    # --- Step 1: deterministic result ---
+    confidence = response_data["confidence"]
+    detected_objects = response_data["detected_objects"]
+    verified = confidence > 0.7
+    segregation = response_data.get("segregation")
+
+    # --- Step 2: Bob explanation layer ---
+    bob_result = bob_service.explain_verification(
+        mission_type=req.mission_type,
+        detected_objects=detected_objects,
+        confidence=confidence,
+        verified=verified,
+        segregation=segregation,
+    )
+
+    # message now comes from Bob (student_explanation); fallback kept in bob_service
+    message = bob_result["student_explanation"]
+
     return VerifyImageResponse(
-        verified=response_data["confidence"] > 0.7,
-        confidence=response_data["confidence"],
-        detected_objects=response_data["detected_objects"],
-        message=response_data["message"],
-        segregation=response_data.get("segregation"),
+        verified=verified,
+        confidence=confidence,
+        detected_objects=detected_objects,
+        message=message,
+        segregation=segregation,
+        student_explanation=bob_result["student_explanation"],
+        teacher_explanation=bob_result["teacher_explanation"],
+        needs_teacher_review=bob_result["needs_teacher_review"],
     )
 
 @app.post("/personalize-learning", response_model=PersonalizeLearningResponse)

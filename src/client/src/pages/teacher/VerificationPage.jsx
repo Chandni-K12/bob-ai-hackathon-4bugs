@@ -118,7 +118,9 @@ export default function VerificationPage() {
                 <p className="text-sm mt-1"><span className="text-muted-foreground">Location:</span> {viewSub.location}</p>
               </div>
               <div className="space-y-2">
-                {['✓ Activity detected', '✓ Evidence received', '✓ Image appears relevant'].map((t, i) => (
+                {viewSub.detectedItems?.map((t, i) => (
+                  <p key={i} className="text-sm text-eco-green flex items-center gap-2">✓ Detected: {t}</p>
+                )) || ['✓ Activity detected', '✓ Evidence received', '✓ Image appears relevant'].map((t, i) => (
                   <p key={i} className="text-sm text-eco-green">{t}</p>
                 ))}
               </div>
@@ -126,6 +128,17 @@ export default function VerificationPage() {
                 <p className="text-xs text-muted-foreground">Verification Confidence</p>
                 <p className="text-4xl font-bold text-eco-green">{viewSub.aiConfidence}%</p>
               </div>
+
+              {/* IBM Bob Teacher Explanation Display */}
+              <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 space-y-1">
+                <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                  🤖 IBM Bob Technical Note (Teacher Review)
+                </p>
+                <p className="text-xs text-foreground leading-relaxed">
+                  {viewSub.teacherExplanation || `Automated check passed for '${viewSub.missionTitle}' at ${viewSub.aiConfidence}% confidence. Detected items: ${viewSub.detectedItems?.join(', ')}.`}
+                </p>
+              </div>
+
               <div className="flex gap-3">
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handleApprove(viewSub.id)}
                   className="flex-1 py-3 rounded-xl bg-eco-green text-white font-semibold flex items-center justify-center gap-2">
