@@ -2,7 +2,7 @@
 # HACKATHON SUBMISSION — .gitignore
 # =============================================================================
 # IMPORTANT: Never commit secrets, credentials, or large binary files.
-
+cargoshield-backend-plan.md
 # ── Secrets & Environment ─────────────────────────────────────────────────────
 .env
 .env.local
