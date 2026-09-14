@@ -185,6 +185,47 @@ app.post('/api/ai/chat', (req, res) => {
   res.json({ reply, timestamp: new Date().toISOString() });
 });
 
+// --- TASKS (teacher assigns → student sees) ---
+// In-memory store seeded with the same tasks shown in TaskAllocation.jsx
+const tasks = [
+  { id: 't1', classId: '8-A', syllabus: 'Water Resources',    envTopic: 'Water Conservation', task: 'Water Conservation Scenario Quiz', deadline: '2026-08-25', points: 100, difficulty: 'Medium', status: 'assigned',     students: 40, completed: 12 },
+  { id: 't2', classId: '8-A', syllabus: 'Natural Vegetation', envTopic: 'Biodiversity',        task: 'Biodiversity Explorer Mission',    deadline: '2026-08-28', points: 150, difficulty: 'Medium', status: 'in_progress', students: 40, completed: 28 },
+  { id: 't3', classId: '8-B', syllabus: 'Minerals',           envTopic: 'Renewable Energy',    task: 'Energy Audit Assignment',          deadline: '2026-08-22', points: 120, difficulty: 'Hard',   status: 'overdue',     students: 38, completed: 15 },
+  { id: 't4', classId: '8-A', syllabus: 'Pollution',          envTopic: 'Waste Management',    task: 'Waste Segregation Challenge',      deadline: '2026-08-20', points:  80, difficulty: 'Easy',   status: 'completed',   students: 40, completed: 40 },
+];
+
+// GET /api/tasks?classId=8-A  → returns tasks for that class
+app.get('/api/tasks', (req, res) => {
+  const { classId } = req.query;
+  if (classId) {
+    return res.json(tasks.filter(t => t.classId === classId));
+  }
+  res.json(tasks);
+});
+
+// POST /api/tasks  → teacher assigns a new task; stored in memory
+app.post('/api/tasks', (req, res) => {
+  const { classId, syllabus, envTopic, task, difficulty, deadline, points } = req.body;
+  if (!classId || !task) {
+    return res.status(400).json({ error: 'classId and task are required' });
+  }
+  const newTask = {
+    id: 't' + (tasks.length + 1) + '_' + Date.now(),
+    classId,
+    syllabus:    syllabus    || '',
+    envTopic:    envTopic    || '',
+    task,
+    difficulty:  difficulty  || 'Medium',
+    deadline:    deadline    || '',
+    points:      Number(points) || 100,
+    status:      'assigned',
+    students:    40,
+    completed:   0,
+  };
+  tasks.push(newTask);
+  res.status(201).json(newTask);
+});
+
 // --- ANALYTICS ---
 app.get('/api/analytics/platform', (req, res) => {
   res.json({ totalSchools: 128, totalStudents: 42850, totalTeachers: 2340, activeCompetitions: 16 });
