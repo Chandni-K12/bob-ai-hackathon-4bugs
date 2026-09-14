@@ -117,8 +117,47 @@ const extractCountFromQuery = (query, defaultVal = 3) => {
 };
 
 export default function AIMentorPage() {
-  const rec = mockAIRecommendation;
+  const [rec, setRec] = useState(mockAIRecommendation);
+  const [recLoading, setRecLoading] = useState(true);
   const [chatOpen, setChatOpen] = useState(false); // Floating Chatbot closed by default
+
+  // Fetch personalised recommendation from the AI service on mount.
+  useEffect(() => {
+    const payload = {
+      student_id: 'demo_student',
+      topic_scores: mockAIRecommendation.weakTopics
+        .concat(mockAIRecommendation.goodTopics)
+        .concat(mockAIRecommendation.strongTopics)
+        .map(t => ({ topic: t.topic, score: t.score })),
+      completed_lessons: [mockAIRecommendation.recommendedLesson.title],
+      mission_activity: [mockAIRecommendation.recommendedMission.title],
+    };
+
+    aiAPI.personalizeLearning(payload)
+      .then(res => {
+        const data = res.data;
+        if (data && data.recommended_topic) {
+          // Map the flat AI response back into the rec shape the UI expects.
+          setRec(prev => ({
+            ...prev,
+            recommendedLesson: {
+              title: data.recommended_topic,
+              reason: data.reason,
+            },
+            recommendedMission: {
+              title: data.recommended_mission,
+              reason: data.reason,
+            },
+            recommendedTopic: data.recommended_topic,
+            learningStyle: data.learning_style,
+          }));
+        }
+      })
+      .catch(() => {
+        // AI service unavailable — keep the mock data already in state.
+      })
+      .finally(() => setRecLoading(false));
+  }, []);
 
   // Chat State
   const [messages, setMessages] = useState([

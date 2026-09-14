@@ -1,0 +1,6 @@
+disruption_id,type,affected_region,severity,active,description
+DIS001,port_closure,Rotterdam,high,true,Major port strike causing delays to all inbound and outbound cargo
+DIS002,weather,Singapore,medium,true,Severe monsoon conditions disrupting port operations and vessel schedules
+DIS003,customs_hold,Shanghai,low,false,Customs inspection backlog resolved; normal operations resumed
+DIS004,strike,Hamburg,high,true,Dock workers strike affecting container handling at Hamburg port
+DIS005,weather,Dubai,medium,false,Sandstorm warnings lifted; port operating normally

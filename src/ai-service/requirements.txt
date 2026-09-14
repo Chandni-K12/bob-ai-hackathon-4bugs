@@ -6,3 +6,7 @@ requests==2.31.0
 # Test dependencies
 pytest==7.4.3
 httpx==0.25.2
+ibm-watsonx-ai
+python-dotenv
+pytest
+httpx

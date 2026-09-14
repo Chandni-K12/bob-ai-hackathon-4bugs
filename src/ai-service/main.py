@@ -5,6 +5,8 @@ from typing import List, Optional
 import random
 
 import bob_service
+from services.mentor_service import get_personalized_recommendation
+from services.insight_service import get_class_insights
 
 app = FastAPI(title="GenGreen AI Service", version="1.0.0")
 
@@ -48,6 +50,28 @@ class PersonalizeLearningResponse(BaseModel):
     reason: str
     recommended_mission: str
     learning_style: str
+
+class TopicPerformance(BaseModel):
+    topic: str
+    avg_score: float
+
+class PendingVerification(BaseModel):
+    student_name: str
+    mission_title: str
+
+class ParticipationEntry(BaseModel):
+    name: str
+    points: int
+
+class ClassInsightsRequest(BaseModel):
+    topic_performance: List[TopicPerformance]
+    pending_verifications: List[PendingVerification]
+    participation_top3: List[ParticipationEntry]
+
+class ClassInsightsResponse(BaseModel):
+    class_id: str
+    actions: List[str]
+    insufficient_data: bool
 
 # --- Routes ---
 
@@ -130,30 +154,31 @@ def verify_image(req: VerifyImageRequest):
         needs_teacher_review=bob_result["needs_teacher_review"],
     )
 
+@app.post("/class-insights/{class_id}", response_model=ClassInsightsResponse)
+def class_insights(class_id: str, req: ClassInsightsRequest):
+    """
+    Calls IBM Bob to generate a prioritised action list for a teacher, scoped to one class.
+    If Bob is unavailable or returns unparseable output, returns a clear
+    'insights unavailable' response — never fabricates actions.
+    """
+    from types import SimpleNamespace
+    scoped = SimpleNamespace(
+        class_id=class_id,
+        topic_performance=req.topic_performance,
+        pending_verifications=req.pending_verifications,
+        participation_top3=req.participation_top3,
+    )
+    return ClassInsightsResponse(**get_class_insights(scoped))
+
+
 @app.post("/personalize-learning", response_model=PersonalizeLearningResponse)
 def personalize_learning(req: PersonalizeLearningRequest):
     """
-    Mock AI personalization engine.
-    In production: analyzes student data -> generates personalized recommendations.
+    Calls IBM Bob (watsonx.ai) to generate personalised learning recommendations.
+    If Bob is unavailable or returns unparseable output, returns a clear
+    'unable to personalise right now' response — never fabricates a recommendation.
     """
-    # Find weakest topic
-    weakest = min(req.topic_scores, key=lambda x: x.score) if req.topic_scores else TopicScore(topic="Water Conservation", score=58)
-
-    mission_map = {
-        "Water Conservation": "Water Guardian",
-        "Waste Management": "Waste Segregation Champion",
-        "Climate Change": "Carbon Footprint Tracker",
-        "Biodiversity": "Biodiversity Explorer",
-        "Renewable Energy": "Energy Audit",
-        "Pollution": "Clean Air Challenge",
-    }
-
-    return PersonalizeLearningResponse(
-        recommended_topic=weakest.topic,
-        reason=f"You scored {weakest.score}% in recent {weakest.topic} scenarios. Focus on this topic to improve your Green Score.",
-        recommended_mission=mission_map.get(weakest.topic, "Eco Explorer"),
-        learning_style="scenario-based",
-    )
+    return PersonalizeLearningResponse(**get_personalized_recommendation(req))
 
 @app.get("/health")
 def health():
