@@ -55,9 +55,7 @@ submission:
     languages: ["JavaScript", "Python"]                      # REQUIRED — e.g., ["Python", "TypeScript"]
     frameworks: ["React", "Vite", "Tailwind CSS", "Express.js", "FastAPI"]                     # e.g., ["FastAPI", "React"]
     ibm_technologies: ["IBM Bob"]               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
-    databases: []                      # e.g., ["PostgreSQL", "Redis"]
-    other: []                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
-
+    
   what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
     Bob is genuinely load-bearing, not name-dropped: the mission-verification decision
     stays a deterministic rule (so it's auditable and can't be talked into a false
