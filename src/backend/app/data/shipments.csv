@@ -1,0 +1,11 @@
+shipment_id,origin,destination,carrier,route,status,eta
+SHP001,Rotterdam,Singapore,MaerskLine,Europe-Asia,in_transit,2025-08-10
+SHP002,Rotterdam,New York,HapagLloyd,Europe-Americas,delayed,2025-08-05
+SHP003,Hamburg,Shanghai,CMA CGM,Europe-Asia,in_transit,2025-08-12
+SHP004,Singapore,Los Angeles,Evergreen,Asia-Americas,in_transit,2025-08-15
+SHP005,New York,London,MSC,Americas-Europe,delivered,2025-07-28
+SHP006,Shanghai,Dubai,COSCO,Asia-MiddleEast,in_transit,2025-08-20
+SHP007,Dubai,Rotterdam,Emirates Shipping,MiddleEast-Europe,delayed,2025-08-08
+SHP008,Los Angeles,Tokyo,Yang Ming,Americas-Asia,in_transit,2025-08-18
+SHP009,Hamburg,Rotterdam,DB Schenker,Europe-Internal,in_transit,2025-08-03
+SHP010,Singapore,Hamburg,ONE,Asia-Europe,delivered,2025-07-30
