@@ -5,6 +5,7 @@ from typing import List, Optional
 import random
 
 from services.mentor_service import get_personalized_recommendation
+from services.insight_service import get_class_insights
 
 app = FastAPI(title="GenGreen AI Service", version="1.0.0")
 
@@ -44,6 +45,28 @@ class PersonalizeLearningResponse(BaseModel):
     reason: str
     recommended_mission: str
     learning_style: str
+
+class TopicPerformance(BaseModel):
+    topic: str
+    avg_score: float
+
+class PendingVerification(BaseModel):
+    student_name: str
+    mission_title: str
+
+class ParticipationEntry(BaseModel):
+    name: str
+    points: int
+
+class ClassInsightsRequest(BaseModel):
+    topic_performance: List[TopicPerformance]
+    pending_verifications: List[PendingVerification]
+    participation_top3: List[ParticipationEntry]
+
+class ClassInsightsResponse(BaseModel):
+    class_id: str
+    actions: List[str]
+    insufficient_data: bool
 
 # --- Routes ---
 
@@ -103,6 +126,23 @@ def verify_image(req: VerifyImageRequest):
         message=response_data["message"],
         segregation=response_data.get("segregation"),
     )
+
+@app.post("/class-insights/{class_id}", response_model=ClassInsightsResponse)
+def class_insights(class_id: str, req: ClassInsightsRequest):
+    """
+    Calls IBM Bob to generate a prioritised action list for a teacher, scoped to one class.
+    If Bob is unavailable or returns unparseable output, returns a clear
+    'insights unavailable' response — never fabricates actions.
+    """
+    from types import SimpleNamespace
+    scoped = SimpleNamespace(
+        class_id=class_id,
+        topic_performance=req.topic_performance,
+        pending_verifications=req.pending_verifications,
+        participation_top3=req.participation_top3,
+    )
+    return ClassInsightsResponse(**get_class_insights(scoped))
+
 
 @app.post("/personalize-learning", response_model=PersonalizeLearningResponse)
 def personalize_learning(req: PersonalizeLearningRequest):
