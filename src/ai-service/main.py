@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import random
 
+from services.mentor_service import get_personalized_recommendation
+
 app = FastAPI(title="GenGreen AI Service", version="1.0.0")
 
 app.add_middleware(
@@ -105,27 +107,11 @@ def verify_image(req: VerifyImageRequest):
 @app.post("/personalize-learning", response_model=PersonalizeLearningResponse)
 def personalize_learning(req: PersonalizeLearningRequest):
     """
-    Mock AI personalization engine.
-    In production: analyzes student data -> generates personalized recommendations.
+    Calls IBM Bob (watsonx.ai) to generate personalised learning recommendations.
+    If Bob is unavailable or returns unparseable output, returns a clear
+    'unable to personalise right now' response — never fabricates a recommendation.
     """
-    # Find weakest topic
-    weakest = min(req.topic_scores, key=lambda x: x.score) if req.topic_scores else TopicScore(topic="Water Conservation", score=58)
-
-    mission_map = {
-        "Water Conservation": "Water Guardian",
-        "Waste Management": "Waste Segregation Champion",
-        "Climate Change": "Carbon Footprint Tracker",
-        "Biodiversity": "Biodiversity Explorer",
-        "Renewable Energy": "Energy Audit",
-        "Pollution": "Clean Air Challenge",
-    }
-
-    return PersonalizeLearningResponse(
-        recommended_topic=weakest.topic,
-        reason=f"You scored {weakest.score}% in recent {weakest.topic} scenarios. Focus on this topic to improve your Green Score.",
-        recommended_mission=mission_map.get(weakest.topic, "Eco Explorer"),
-        learning_style="scenario-based",
-    )
+    return PersonalizeLearningResponse(**get_personalized_recommendation(req))
 
 @app.get("/health")
 def health():
