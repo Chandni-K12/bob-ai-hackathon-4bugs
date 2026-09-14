@@ -10,7 +10,7 @@
 
 team:
   name: "4 Bugs"                             # REQUIRED — e.g., "Orion Squad"
-  track: "AI | Sustainability"                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  track: "Sustainability"                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
     name: "Hima Mehta"                           # REQUIRED — e.g., "Alice Chen"
     email: "mehtahima1510@gmail.com"                          # REQUIRED — e.g., "alice.chen@ibm.com"
