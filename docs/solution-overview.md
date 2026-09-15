@@ -3,20 +3,12 @@
 ## Core Mechanism
 
 GenGreen works by chaining three steps — learn, act, verify — and placing IBM Bob at
-each of the three points where a deterministic rule alone is insufficient.
-
-### Student Journey
-
-A student opens
+each of the three points where a deterministic rule alone is insufficient. A student opens
 the platform and lands on a dashboard showing their Green Score, streak, and badges. From
 there they can visit the **Learn** page (topic-based lessons covering, for example, Climate
 Change, Waste Management, and Water Conservation), play a scenario-based **Quiz** or the
 **Eco Crossword** game, and then navigate to **Missions** to complete a real-world task.
-
-### Evidence Verification
-
-Every mission (tree plantation, waste segregation, water
-conservation, clean campus, or
+Every mission (tree plantation, waste segregation, water conservation, clean campus, or
 green transport) requires photographic evidence. When the student submits a photo, the
 client first converts the file to a base64 data-URL and sends it — along with the file
 name, size, and mission type — to the FastAPI AI service's `/verify-image` endpoint.
@@ -31,23 +23,16 @@ panel. Critically, the `verified` boolean is computed before Bob is invoked and 
 explicitly never modified by Bob's response — Bob is the language layer, not the decision
 layer. Submissions whose confidence falls in the borderline band 0.70–0.80 have
 `needs_teacher_review` set to `true`, routing them to the teacher's **Verification** page
-for manual approval or rejection alongside the AI-generated technical note.
-
-### Teacher Insights
-
-The teacher can visit the **Insights** page, which calls `/class-insights/{class_id}`.
-The endpoint fetches aggregate class data from the Express server (topic average scores, pending
+for manual approval or rejection alongside the AI-generated technical note. Meanwhile the
+teacher can visit the **Insights** page, which calls `/class-insights/{class_id}`. That
+endpoint fetches aggregate class data from the Express server (topic average scores, pending
 verification count, participation trend — never individual student names), evaluates
 whether the data is usable, and if so sends a compact JSON context to IBM Bob, asking it to
 return up to three prioritised action objects (`priority`, `title`, `reason`,
 `recommended_action`). A structural constraint is enforced in code: if
 `pending_verification_count > 0` but Bob returns no high-priority action, the response is
 rejected and the endpoint returns `data_status="unavailable"` rather than silently surfacing
-misleading output.
-
-### Personalisation and Support
-
-A third Bob call, `/personalize-learning`, accepts a student's topic
+misleading output. A third Bob call, `/personalize-learning`, accepts a student's topic
 scores, completed lessons, and mission activity and asks Bob to recommend the next topic,
 an associated mission, and a learning style. The AI Eco Mentor chat page (`/chat`) also
 calls Bob to answer free-form student questions, with a keyword-based fallback covering
@@ -79,7 +64,7 @@ check that forces at least one `high` priority action whenever pending submissio
 | Per-mission confidence bands rather than a single threshold | Each mission type has a realistic range (e.g. clean campus 0.90–0.98 vs. green transport 0.83–0.94), making the system feel appropriately calibrated per activity. The rationale for the specific widths is not documented — this is an inference from the `_confidence_bands` dict in `main.py`. |
 | Canvas colour-sampling as client-side fallback | Ensures the verification flow still works when the AI service is down, without requiring any server round-trip. Screenshot detection (`dark > 45%` and `outdoor < 15%`) provides a meaningful signal to reject obvious gaming attempts. |
 | `insight_service` fetches only aggregate data, never individual student names | Stated in `insight_service.py`: "Never fetches individual student records." This limits what is sent to Bob and avoids sending personally identifiable student data to the model. |
-| Every Bob call has a rule-based fallback that never fabricates output | All three services (`bob_service`, `mentor_service`, `insight_service`) return a deterministic fallback — not an error — when `BOB_API_KEY` is absent or the call fails, so the frontend always receives a structurally valid response. |
+| Every Bob call has a rule-based fallback that never fabricates output | All three services (`bob_service`, `mentor_service`, `insight_service`) return a determinstic fallback — not an error — when `BOB_API_KEY` is absent or the call fails, so the frontend always receives a structurally valid response. |
 
 ## IBM Technologies Used
 
