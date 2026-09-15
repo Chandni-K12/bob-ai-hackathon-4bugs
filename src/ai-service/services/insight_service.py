@@ -175,7 +175,7 @@ def _fallback_insights(class_id: str, summary: dict) -> dict:
         actions.append({
             "priority": "high",
             "title": "Review Pending Submissions",
-            "reason": f"There is {pending} submission awaiting teacher approval.",
+            "reason": f"There are {pending} submissions awaiting teacher approval.",
             "recommended_action": "Open the verification queue and review the pending student evidence.",
         })
 
@@ -213,8 +213,12 @@ def _fallback_insights(class_id: str, summary: dict) -> dict:
 
     return {
         "class_id": class_id,
+        "class_name": summary.get("name", f"Class {class_id.upper()}"),
         "actions": actions[:3],
         "data_status": "sufficient" if actions else "insufficient",
+        "topic_avg_scores": summary.get("topic_avg_scores", []),
+        "pending_verification_count": pending,
+        "participation_trend": summary.get("participation_trend", []),
     }
 
 
@@ -308,4 +312,13 @@ def get_class_insights(class_id: str) -> dict:
             )
             return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
 
-    return {"class_id": class_id, "actions": parsed, "data_status": "sufficient"}
+    return {
+        "class_id": class_id,
+        "class_name": summary.get("name", f"Class {class_id.upper()}"),
+        "actions": parsed,
+        "data_status": "sufficient",
+        "topic_avg_scores": summary.get("topic_avg_scores", []),
+        "pending_verification_count": pending_count,
+        "participation_trend": summary.get("participation_trend", []),
+    }
+
