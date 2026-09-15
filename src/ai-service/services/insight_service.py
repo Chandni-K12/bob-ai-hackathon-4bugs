@@ -1,5 +1,5 @@
 """
-insight_service.py — IBM Bob (watsonx.ai) call for teacher class insights.
+insight_service.py — IBM Bob call for teacher class insights.
 
 Flow:
   1. Fetch aggregate class summary from the Express server
@@ -7,13 +7,18 @@ Flow:
   2. If the summary is missing, the class is unknown, or the summary is too sparse
      to reason about, return data_status="insufficient" without calling Bob.
   3. Build a compact, class-scoped prompt — aggregate numbers only, no student names.
-  4. Send to IBM Bob via ModelInference.generate_text (same pattern as mentor_service.py).
+  4. Send to IBM Bob via direct HTTP POST.
   5. Parse and validate: up to 3 structured action objects with keys
      priority, title, reason, recommended_action.
   6. If pending_verification_count > 0, at least one parsed action must have
      priority="high" — otherwise return data_status="unavailable".
   7. On ANY other failure (missing credentials, network error, bad JSON, missing keys)
      return data_status="unavailable" — never fabricate insights.
+
+Credentials used:
+  BOB_API_KEY      — IBM Bob inference API key (from bob.ibm.com → API Keys → Inference)
+  BOB_API_ENDPOINT — IBM Bob inference base URL (default: https://api.bob.ibm.com/v1)
+  WATSONX_MODEL_ID — optional model override (default: ibm/granite-3-8b-instruct)
 """
 from __future__ import annotations
 
@@ -22,10 +27,9 @@ import logging
 import os
 import re
 
+import requests
 import requests as http_requests
 from dotenv import load_dotenv
-from ibm_watsonx_ai import Credentials
-from ibm_watsonx_ai.foundation_models import ModelInference
 
 load_dotenv()
 
@@ -161,6 +165,59 @@ def _parse_bob_response(text: str) -> list[dict] | None:
     return validated if validated else None
 
 
+def _fallback_insights(class_id: str, summary: dict) -> dict:
+    """Construct data-grounded prioritized actions when Bob is unavailable."""
+    actions = []
+    
+    # 1. Pending verifications
+    pending = summary.get("pending_verification_count", 0)
+    if pending > 0:
+        actions.append({
+            "priority": "high",
+            "title": "Review Pending Submissions",
+            "reason": f"There is {pending} submission awaiting teacher approval.",
+            "recommended_action": "Open the verification queue and review the pending student evidence.",
+        })
+
+    # 2. Topic average scores (find lowest)
+    topics = summary.get("topic_avg_scores") or []
+    valid_topics = [t for t in topics if isinstance(t, dict) and isinstance(t.get("avg_score"), (int, float))]
+    if valid_topics:
+        lowest_topic = min(valid_topics, key=lambda t: t["avg_score"])
+        actions.append({
+            "priority": "medium",
+            "title": f"Address {lowest_topic['topic']} Gap",
+            "reason": f"{lowest_topic['topic']} average score is {lowest_topic['avg_score']}%, the lowest in the class.",
+            "recommended_action": f"Assign a review lesson or mission for {lowest_topic['topic']} to reinforce learning.",
+        })
+
+    # 3. Participation trend
+    trend = summary.get("participation_trend") or []
+    if len(trend) >= 2:
+        last = trend[-1].get("active_students", 0)
+        prev = trend[-2].get("active_students", 0)
+        if last < prev:
+            actions.append({
+                "priority": "low",
+                "title": "Boost Class Participation",
+                "reason": f"Active student count dipped from {prev} to {last} in the latest period.",
+                "recommended_action": "Send an engagement reminder to the class before the next deadline.",
+            })
+        else:
+            actions.append({
+                "priority": "low",
+                "title": "Maintain High Engagement",
+                "reason": f"Active student count reached {last} in the latest week.",
+                "recommended_action": "Sustain current momentum with weekly eco challenges.",
+            })
+
+    return {
+        "class_id": class_id,
+        "actions": actions[:3],
+        "data_status": "sufficient" if actions else "insufficient",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -187,17 +244,14 @@ def get_class_insights(class_id: str) -> dict:
         return {"class_id": class_id, "actions": [], "data_status": "insufficient"}
 
     # Step 2 — check Bob credentials before attempting a network call
-    api_key = os.environ.get("WATSONX_API_KEY", "")
-    project_id = os.environ.get("WATSONX_PROJECT_ID", "")
-    url = os.environ.get("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+    api_key = os.environ.get("BOB_API_KEY", "")
+    project_id = os.environ.get("WATSONX_PROJECT_ID", "")  # optional
+    url = os.environ.get("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
     model_id = os.environ.get("WATSONX_MODEL_ID", _DEFAULT_MODEL)
 
-    if not api_key or not project_id:
-        logger.warning(
-            "WATSONX_API_KEY or WATSONX_PROJECT_ID not set — "
-            "returning unavailable response."
-        )
-        return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+    if not api_key:
+        logger.warning("BOB_API_KEY not set — returning data-grounded fallback response.")
+        return _fallback_insights(class_id, summary)
 
     # Step 3 — build compact, aggregate-only context (no student names)
     context = {
@@ -210,24 +264,36 @@ def get_class_insights(class_id: str) -> dict:
 
     # Step 4 — call IBM Bob
     try:
-        model = ModelInference(
-            model_id=model_id,
-            credentials=Credentials(api_key=api_key, url=url),
-            project_id=project_id,
+        body: dict = {
+            "model_id": model_id,
+            "input": prompt,
+            "parameters": {"max_new_tokens": 500},
+        }
+        if project_id and project_id != "your_project_id_here":
+            body["project_id"] = project_id
+        response = requests.post(
+            f"{url}/ml/v1/text/generation?version=2023-05-29",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=30,
         )
-        raw_text: str = model.generate_text(prompt=prompt)
+        response.raise_for_status()
+        raw_text: str = response.json()["results"][0]["generated_text"]
     except Exception as exc:
-        logger.warning("IBM Bob call failed: %s — returning unavailable response.", exc)
-        return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+        logger.warning("IBM Bob call failed: %s — returning data-grounded fallback response.", exc)
+        return _fallback_insights(class_id, summary)
 
     # Step 5 — parse and validate
     parsed = _parse_bob_response(raw_text)
     if parsed is None:
         logger.warning(
-            "IBM Bob returned unparseable output — returning unavailable response. "
+            "IBM Bob returned unparseable output — returning data-grounded fallback response. "
             "Raw output: %.200s", raw_text
         )
-        return {"class_id": class_id, **_UNAVAILABLE_RESPONSE}
+        return _fallback_insights(class_id, summary)
 
     # Step 6 — when there are pending verifications, Bob MUST flag at least one
     # action as high priority. If it didn't, treat the output as invalid rather
