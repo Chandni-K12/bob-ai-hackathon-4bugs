@@ -15,8 +15,7 @@
 
 ## 🎯 Problem Statement
 
-> What problem does your project solve? Who experiences this problem?
-    Environmental education in Indian schools and higher-education institutions remains 
+>   Environmental education in Indian schools and higher-education institutions remains 
     largely theoretical and textbook-driven, creating a gap between environmental 
     awareness and the ability of students to apply this knowledge through sustainable, 
     real-world actions. Despite NEP 2020's emphasis on environmental awareness, 
@@ -28,8 +27,7 @@
 
 ## 💡 Solution
 
-> What did you build? How does it solve the problem above?
-    GenGreen gamifies environmental learning through a learn -> play -> complete
+>   GenGreen gamifies environmental learning through a learn -> play -> complete
     missions -> AI verify -> earn points -> compete loop, with IBM Bob as the
     reasoning layer across three touchpoints: personalizing each student's next
     topic/mission, explaining and sanity-checking mission evidence submissions
