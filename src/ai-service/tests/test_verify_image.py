@@ -59,12 +59,12 @@ def _bob_fail(student_msg: str = "Your submission could not be verified. Please 
 
 def test_clear_pass_verified_true_with_bob_message():
     """
-    tree_plantation has a fixed confidence of 0.94 → verified=True.
+    tree_plantation confidence is random within (0.88, 0.97) → always verified=True.
     Bob provides a real explanation; message must equal student_explanation.
     """
     bob_response = _bob_pass(
         student_msg="Excellent work! Your tree plantation evidence clearly shows a sapling, soil, and gardening tools.",
-        teacher_msg="Submission passed at 94% confidence. Tree sapling, Soil, and Gardening tools were all detected as expected.",
+        teacher_msg="Submission passed with high confidence. Tree sapling, Soil, and Gardening tools were all detected as expected.",
     )
 
     with patch("bob_service.explain_verification", return_value=bob_response) as mock_bob:
@@ -76,9 +76,9 @@ def test_clear_pass_verified_true_with_bob_message():
     assert resp.status_code == 200
     data = resp.json()
 
-    # Deterministic decision is unchanged
+    # Confidence must fall within the tree_plantation band and always verify
+    assert 0.88 <= data["confidence"] <= 0.97
     assert data["verified"] is True
-    assert data["confidence"] == pytest.approx(0.94)
     assert "Tree sapling" in data["detected_objects"]
 
     # message comes from Bob, not a hardcoded string
@@ -87,11 +87,11 @@ def test_clear_pass_verified_true_with_bob_message():
     assert data["teacher_explanation"] == bob_response["teacher_explanation"]
     assert data["needs_teacher_review"] is False
 
-    # Bob was called exactly once with the deterministic result
+    # Bob was called exactly once; confidence is whatever the band produced
     mock_bob.assert_called_once_with(
         mission_type="tree_plantation",
         detected_objects=data["detected_objects"],
-        confidence=pytest.approx(0.94),
+        confidence=data["confidence"],
         verified=True,
         segregation=None,
     )
@@ -315,7 +315,8 @@ def test_response_schema_segregation_null_for_non_waste_mission():
 def test_bob_unavailable_fallback_preserves_verified():
     """
     When BOB_API_KEY is absent, the endpoint falls back to rule-based text.
-    verified is determined by the deterministic confidence, not Bob.
+    verified is determined by the deterministic confidence band, not Bob.
+    tree_plantation band is (0.88, 0.97) — always above the 0.70 threshold.
     """
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("BOB_API_KEY", None)
@@ -327,8 +328,9 @@ def test_bob_unavailable_fallback_preserves_verified():
     assert resp.status_code == 200
     data = resp.json()
 
-    assert data["verified"] is True          # 0.94 > 0.70
-    assert data["confidence"] == pytest.approx(0.94)
+    # Confidence is within the tree_plantation band; threshold guarantees verified
+    assert 0.88 <= data["confidence"] <= 0.97
+    assert data["verified"] is True          # entire band > 0.70
     assert isinstance(data["message"], str) and len(data["message"]) > 0
     assert isinstance(data["student_explanation"], str) and len(data["student_explanation"]) > 0
     assert isinstance(data["teacher_explanation"], str) and len(data["teacher_explanation"]) > 0

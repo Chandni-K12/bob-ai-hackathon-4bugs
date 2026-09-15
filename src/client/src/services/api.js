@@ -76,6 +76,7 @@ export const missionsAPI = {
 export const submissionsAPI = {
   getAll: (params) => api.get('/submissions', { params }),
   getById: (id) => api.get(`/submissions/${id}`),
+  create: (data) => api.post('/submissions', data),
   approve: (id) => api.put(`/submissions/${id}/approve`),
   reject: (id) => api.put(`/submissions/${id}/reject`),
 };

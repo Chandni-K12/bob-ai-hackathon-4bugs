@@ -69,17 +69,59 @@ app.get('/api/missions', (req, res) => {
 });
 
 // --- SUBMISSIONS ---
+// In-memory store — seeded with one example so the teacher page isn't empty
+// on first load. New entries are appended by POST /api/submissions.
+let submissions = [
+  {
+    id: 'sub1',
+    studentName: 'Ananya Sharma',
+    missionTitle: 'Plant a Tree',
+    aiConfidence: 94,
+    detectedItems: ['Tree sapling', 'Soil', 'Gardening tools'],
+    teacherExplanation: 'Automated check passed at 94% confidence. Tree sapling, Soil, and Gardening tools were all detected as expected.',
+    needsTeacherReview: false,
+    status: 'awaiting_approval',
+    location: 'School Campus',
+    timestamp: new Date().toISOString(),
+  },
+];
+
 app.get('/api/submissions', (req, res) => {
-  res.json([
-    { id: 'sub1', studentName: 'Ananya Sharma', missionTitle: 'Plant a Tree', aiConfidence: 94, status: 'awaiting_approval' },
-  ]);
+  res.json(submissions);
+});
+
+app.post('/api/submissions', (req, res) => {
+  const {
+    studentName, missionTitle, verified, confidence,
+    teacherExplanation, needsTeacherReview, detectedItems,
+  } = req.body;
+
+  const entry = {
+    id: 'sub_' + Date.now(),
+    studentName:        studentName        || 'Student',
+    missionTitle:       missionTitle       || 'Mission',
+    aiConfidence:       Math.round((confidence || 0) * (confidence <= 1 ? 100 : 1)),
+    detectedItems:      Array.isArray(detectedItems) ? detectedItems : [],
+    teacherExplanation: teacherExplanation || '',
+    needsTeacherReview: Boolean(needsTeacherReview),
+    status:             verified ? 'awaiting_approval' : 'rejected',
+    location:           'School Campus',
+    timestamp:          new Date().toISOString(),
+  };
+
+  submissions.push(entry);
+  res.status(201).json(entry);
 });
 
 app.put('/api/submissions/:id/approve', (req, res) => {
+  const sub = submissions.find(s => s.id === req.params.id);
+  if (sub) sub.status = 'approved';
   res.json({ success: true, message: 'Submission approved', pointsAwarded: 100 });
 });
 
 app.put('/api/submissions/:id/reject', (req, res) => {
+  const sub = submissions.find(s => s.id === req.params.id);
+  if (sub) sub.status = 'rejected';
   res.json({ success: true, message: 'Submission rejected' });
 });
 

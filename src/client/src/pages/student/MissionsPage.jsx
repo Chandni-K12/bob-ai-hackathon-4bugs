@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockMissions } from '../../data/mockData';
 import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
-import { aiAPI, tasksAPI } from '../../services/api';
+import { aiAPI, tasksAPI, submissionsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
@@ -342,7 +342,22 @@ export default function MissionsPage() {
           <VerificationModal
             mission={submitMission}
             onClose={() => setSubmitMission(null)}
-            onVerified={(id) => { completeMission(id); setSubmitMission(null); }}
+            onVerified={(id, aiResult) => {
+              // POST the verified result to the server so it appears in the
+              // teacher's verification queue. Fire-and-forget — a POST failure
+              // should never block the student from seeing their result.
+              submissionsAPI.create({
+                studentName:        user?.name || 'Student',
+                missionTitle:       submitMission.title,
+                verified:           aiResult?.verified ?? true,
+                confidence:         aiResult?.confidence ?? 0,
+                teacherExplanation: aiResult?.teacher_explanation ?? '',
+                needsTeacherReview: aiResult?.needs_teacher_review ?? false,
+                detectedItems:      aiResult?.detected_objects ?? [],
+              }).catch(() => {});
+              completeMission(id);
+              setSubmitMission(null);
+            }}
           />
         )}
       </AnimatePresence>
