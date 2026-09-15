@@ -1,0 +1,9 @@
+{
+  "name": "bob-ai-hackathon-4bugs",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd src/client && npm install && npm run build",
+    "start": "cd src/client && npm run preview"
+  }
+}
