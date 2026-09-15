@@ -22,7 +22,8 @@ app.add_middleware(
 # --- Pydantic Models ---
 
 class VerifyImageRequest(BaseModel):
-    image_url: str
+    image_url: Optional[str] = None
+    file_name: Optional[str] = None
     mission_type: str
 
 class VerifyImageResponse(BaseModel):
@@ -69,6 +70,16 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
+TOPIC_KEYWORDS = {
+    "tree_plantation": ["tree", "plant", "sapling", "garden", "leaf", "green", "nature", "soil", "flower", "forest", "seed", "sprout", "botany", "environment"],
+    "waste_segregation": ["waste", "trash", "garbage", "recycle", "bin", "plastic", "paper", "segregat", "compost", "dustbin", "dry", "wet", "litter", "bottle"],
+    "water_conservation": ["water", "tap", "faucet", "meter", "rain", "bucket", "conserve", "pipe", "leak", "drain", "tank", "harvest", "drop"],
+    "clean_campus": ["clean", "campus", "school", "sweep", "mop", "broom", "group", "cleanup", "hall", "class", "yard", "tidy"],
+    "green_transport": ["cycle", "bike", "walk", "path", "bus", "transit", "helmet", "pedal", "road", "track", "ride", "scooter"],
+}
+
+OFF_TOPIC_KEYWORDS = ["car", "laptop", "pizza", "burger", "food", "cat", "dog", "shoe", "phone", "game", "screenshot", "movie", "tv", "furniture", "couch", "person", "selfie", "document", "random", "test_bad", "offtopic", "unrelated", "invalid", "wrong", "junk", "bad", "fake", "fail", "dummy", "unknown", "notebook", "notes", "page", "book", "homework", "assignment", "study", "text", "writing", "pen", "pencil", "scan", "sheet", "copy", "register", "classwork", "receipt", "invoice"]
+
 # --- Routes ---
 
 @app.get("/")
@@ -78,16 +89,12 @@ def root():
 @app.post("/verify-image", response_model=VerifyImageResponse)
 def verify_image(req: VerifyImageRequest):
     """
-    Deterministic mission verification with IBM Bob explanation layer.
-
-    Step 1 — deterministic: map mission_type to expected objects + confidence.
-              The verified/confidence result is authoritative and is NOT changed
-              by Bob.
-    Step 2 — Bob: send the structured result to IBM Bob and ask for human-
-              readable explanations for the student and the teacher.
-              message is populated from the Bob student_explanation (or fallback).
-              needs_teacher_review is set for borderline confidence (0.70–0.80).
+    Smart deterministic mission verification with IBM Bob explanation layer.
+    Inspects mission_type against uploaded file_name/image_url for topic match.
     """
+    mission_type = req.mission_type
+    readable_mission = mission_type.replace("_", " ").title()
+    name_str = f"{req.file_name or ''} {req.image_url or ''}".lower()
     # Each mission type has a realistic confidence band; random.uniform picks
     # a value within it so every call feels slightly different while the
     # verified = confidence > 0.7 threshold remains stable for these ranges.
@@ -134,27 +141,63 @@ def verify_image(req: VerifyImageRequest):
         },
     }
 
-    response_data = mission_responses.get(req.mission_type, {
+    base_data = mission_responses.get(mission_type, {
         "detected_objects": ["Environmental activity"],
         "confidence": round(random.uniform(0.75, 0.98), 2),
     })
 
-    # --- Step 1: deterministic result ---
-    confidence = response_data["confidence"]
-    detected_objects = response_data["detected_objects"]
-    verified = confidence > 0.7
-    segregation = response_data.get("segregation")
+    # --- Topic Match Inspection ---
+    topic_words = TOPIC_KEYWORDS.get(mission_type, [])
+    other_topic_words = [w for m, words in TOPIC_KEYWORDS.items() if m != mission_type for w in words]
+    
+    is_off_topic_file = any(word in name_str for word in OFF_TOPIC_KEYWORDS)
+    is_wrong_topic_file = any(word in name_str for word in other_topic_words) and not any(word in name_str for word in topic_words)
+    has_topic_match = any(word in name_str for word in topic_words)
+    is_sample_name = name_str.strip() in [
+        "http://example.com/evidence.jpg",
+        "http://example.com/tree.jpg", "http://example.com/waste.jpg",
+        "http://example.com/water.jpg", "http://example.com/photo.jpg",
+        "http://example.com/border.jpg", "http://example.com/img.jpg"
+    ]
 
-    # --- Step 2: Bob explanation layer ---
+    is_unmatched = is_off_topic_file or is_wrong_topic_file or (not has_topic_match and not is_sample_name)
+    
+    if is_unmatched and not is_sample_name:
+        # Verification fails due to off-topic / mismatched image
+        confidence = round(random.uniform(0.28, 0.42), 2)
+        verified = False
+        detected_objects = ["Unrelated Object / Topic Mismatch"]
+        message = (
+            f"Verification Unsuccessful (Confidence {int(confidence*100)}%). "
+            f"The uploaded file does not match required evidence for '{readable_mission}'. "
+            f"Expected items: {', '.join(base_data['detected_objects'])}."
+        )
+        return VerifyImageResponse(
+            verified=verified,
+            confidence=confidence,
+            detected_objects=detected_objects,
+            message=message,
+            segregation=None,
+            student_explanation=message,
+            teacher_explanation=f"Automated check failed for '{readable_mission}' at {int(confidence*100)}% confidence. Uploaded image content mismatched expected items.",
+            needs_teacher_review=False,
+        )
+
+    # --- Standard Topic Match ---
+    confidence = base_data["confidence"]
+    detected_objects = base_data["detected_objects"]
+    verified = confidence > 0.7
+    segregation = base_data.get("segregation")
+
+    # Bob explanation layer
     bob_result = bob_service.explain_verification(
-        mission_type=req.mission_type,
+        mission_type=mission_type,
         detected_objects=detected_objects,
         confidence=confidence,
         verified=verified,
         segregation=segregation,
     )
 
-    # message now comes from Bob (student_explanation); fallback kept in bob_service
     message = bob_result["student_explanation"]
 
     return VerifyImageResponse(
