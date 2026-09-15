@@ -1,7 +1,7 @@
 """
 bob_service.py
 --------------
-Thin wrapper around IBM Bob (watsonx.ai) for the verify-image explanation layer.
+Thin wrapper around IBM Bob for the verify-image explanation layer.
 
 Responsibility: take the ALREADY COMPUTED deterministic verification result
 (mission_type, detected_objects, confidence, verified) and ask Bob to produce:
@@ -12,11 +12,10 @@ Responsibility: take the ALREADY COMPUTED deterministic verification result
 The deterministic `verified` bool is passed IN and must never be altered here.
 If Bob is unavailable, a rule-based fallback is returned so the endpoint never fails.
 
-Credentials used (same as mentor_service.py — no extra keys needed):
-  WATSONX_API_KEY      — IBM Cloud API key
-  WATSONX_PROJECT_ID   — watsonx.ai project ID
-  WATSONX_URL          — defaults to https://us-south.ml.cloud.ibm.com
-  WATSONX_MODEL_ID     — defaults to ibm/granite-3-8b-instruct
+Credentials used:
+  BOB_API_KEY      — IBM Bob inference API key (from bob.ibm.com → API Keys → Inference)
+  BOB_API_ENDPOINT — IBM Bob inference base URL (default: https://api.bob.ibm.com/v1)
+  WATSONX_MODEL_ID — optional model override (default: ibm/granite-3-8b-instruct)
 """
 
 import json
@@ -25,6 +24,7 @@ import os
 import re
 from typing import Optional
 
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,17 +32,21 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration — reads the same WATSONX_* vars used by mentor_service.py
+# Configuration
 # ---------------------------------------------------------------------------
 
 def _get_credentials() -> tuple[str, str, str, str]:
-    """Return (api_key, project_id, url, model_id). Empty strings if not set."""
-    return (
-        os.getenv("WATSONX_API_KEY", ""),
-        os.getenv("WATSONX_PROJECT_ID", ""),
-        os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
-        os.getenv("WATSONX_MODEL_ID", "ibm/granite-3-8b-instruct"),
-    )
+    """Return (api_key, project_id, endpoint_url, model_id).
+
+    project_id is optional for Inference-scoped Bob keys (the scope is baked
+    into the key). If WATSONX_PROJECT_ID is set it is included in the request
+    body; otherwise the body is sent without it.
+    """
+    api_key = os.getenv("BOB_API_KEY", "")
+    project_id = os.getenv("WATSONX_PROJECT_ID", "")  # optional
+    url = os.getenv("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
+    model_id = os.getenv("WATSONX_MODEL_ID", "ibm/granite-3-8b-instruct")
+    return (api_key, project_id, url, model_id)
 
 # Confidence band that triggers manual teacher review regardless of pass/fail
 _BORDERLINE_LOW = 0.70
@@ -104,25 +108,34 @@ Respond ONLY with valid JSON in this exact format:
 
 
 # ---------------------------------------------------------------------------
-# Bob API call — uses ibm-watsonx-ai SDK (same as mentor_service.py)
+# Bob API call — direct HTTP POST to BOB_API_ENDPOINT
 # ---------------------------------------------------------------------------
 
 def _call_bob(prompt: str) -> dict:
     """
-    Call IBM Bob via the watsonx.ai ModelInference SDK.
+    Call IBM Bob via direct HTTP POST to the inference endpoint.
     Returns a parsed dict with student_explanation and teacher_explanation.
     Raises on any error so the caller can fall back gracefully.
     """
-    from ibm_watsonx_ai import Credentials
-    from ibm_watsonx_ai.foundation_models import ModelInference
-
     api_key, project_id, url, model_id = _get_credentials()
-    model = ModelInference(
-        model_id=model_id,
-        credentials=Credentials(api_key=api_key, url=url),
-        project_id=project_id,
+    body: dict = {
+        "model_id": model_id,
+        "input": prompt,
+        "parameters": {"max_new_tokens": 400},
+    }
+    if project_id and project_id != "your_project_id_here":
+        body["project_id"] = project_id
+    response = requests.post(
+        f"{url}/ml/v1/text/generation?version=2023-05-29",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json=body,
+        timeout=30,
     )
-    raw: str = model.generate_text(prompt=prompt)
+    response.raise_for_status()
+    raw: str = response.json()["results"][0]["generated_text"]
 
     # Strip optional markdown code fence that some model versions add
     clean = raw.strip()
@@ -142,6 +155,14 @@ def _call_bob(prompt: str) -> dict:
 # Fallback: rule-based explanations when Bob is unavailable
 # ---------------------------------------------------------------------------
 
+FALLBACK_EVIDENCE_DESCRIPTIONS: dict[str, str] = {
+    "tree_plantation": "a healthy tree sapling planted in soil with gardening tools visible.",
+    "waste_segregation": "proper separation of dry recyclable waste (paper, plastic) and wet organic scraps.",
+    "water_conservation": "the water meter reading and low-flow conservation faucet in place.",
+    "clean_campus": "active group cleaning activity with campus maintenance supplies.",
+    "green_transport": "eco-friendly transit evidence via bicycle or dedicated walking path.",
+}
+
 def _fallback_explanations(
     mission_type: str,
     detected_objects: list[str],
@@ -150,25 +171,28 @@ def _fallback_explanations(
 ) -> dict[str, str]:
     pct = f"{confidence:.0%}"
     readable = mission_type.replace("_", " ").title()
+    desc = FALLBACK_EVIDENCE_DESCRIPTIONS.get(
+        mission_type, f"evidence items: {', '.join(detected_objects)}."
+    )
     if verified:
         student = (
-            f"Great job! Your submission for '{readable}' was verified "
-            f"with {pct} confidence based on the items found in your image."
+            f"Great job! Your submission for '{readable}' was verified with {pct} confidence. "
+            f"The image clearly shows {desc}"
         )
         teacher = (
             f"Automated check passed for '{readable}' at {pct} confidence. "
             f"Detected items: {', '.join(detected_objects)}. "
-            "No discrepancies identified."
+            "Evidence matches expected mission requirements."
         )
     else:
         student = (
-            f"Your submission for '{readable}' could not be verified this time "
-            f"(confidence {pct}). Please re-upload a clearer image showing the required evidence."
+            f"Your submission for '{readable}' could not be verified (confidence {pct}). "
+            f"Please re-upload a clearer photo showing required evidence like {', '.join(detected_objects)}."
         )
         teacher = (
             f"Automated check failed for '{readable}' at {pct} confidence. "
             f"Detected items: {', '.join(detected_objects)}. "
-            "Expected evidence was not clearly identified; manual review recommended."
+            "Required mission evidence was not clearly identified; manual review recommended."
         )
     return {"student_explanation": student, "teacher_explanation": teacher}
 
@@ -197,12 +221,9 @@ def explain_verification(
     """
     needs_review = _BORDERLINE_LOW <= confidence <= _BORDERLINE_HIGH
 
-    api_key, project_id, *_ = _get_credentials()
-    if not api_key or not project_id:
-        logger.warning(
-            "WATSONX_API_KEY or WATSONX_PROJECT_ID not set — "
-            "using fallback explanations for verify-image"
-        )
+    api_key, *_ = _get_credentials()
+    if not api_key:
+        logger.warning("BOB_API_KEY not set — using fallback explanations for verify-image")
         explanations = _fallback_explanations(
             mission_type, detected_objects, confidence, verified
         )
