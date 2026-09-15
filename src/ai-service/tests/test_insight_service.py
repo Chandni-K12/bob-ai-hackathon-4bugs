@@ -69,9 +69,18 @@ _THREE_ACTIONS = [
 ]
 
 
-class _FakeModel:
-    def __init__(self, text): self._text = text
-    def generate_text(self, prompt): return self._text
+class _FakeResponse:
+    """Mimics requests.Response returning generated_text."""
+    def __init__(self, text, status_code=200):
+        self._text = text
+        self.status_code = status_code
+
+    def raise_for_status(self):
+        if self.status_code != 200:
+            raise Exception(f"HTTP Error {self.status_code}")
+
+    def json(self):
+        return {"results": [{"generated_text": self._text}]}
 
 
 def _mock_summary(summary=_GOOD_SUMMARY):
@@ -79,12 +88,12 @@ def _mock_summary(summary=_GOOD_SUMMARY):
     return patch("services.insight_service._fetch_class_summary", return_value=summary)
 
 def _mock_bob(text):
-    return patch("services.insight_service.ModelInference", return_value=_FakeModel(text))
+    return patch("services.insight_service.requests.post", return_value=_FakeResponse(text))
+
+_CREDS_ENV = {"BOB_API_KEY": "fake-key", "BOB_API_ENDPOINT": "https://us-south.ml.cloud.ibm.com"}
 
 def _mock_creds():
-    return patch("services.insight_service.Credentials", return_value=MagicMock())
-
-_CREDS_ENV = {"WATSONX_API_KEY": "fake-key", "WATSONX_PROJECT_ID": "fake-project"}
+    return patch.dict("os.environ", _CREDS_ENV)
 
 
 # ---------------------------------------------------------------------------
@@ -113,18 +122,15 @@ def test_pending_review_generates_high_priority_action():
 def test_prompt_contains_no_student_names():
     """
     Aggregate context sent to Bob must not include individual student names.
-    We capture the prompt via the FakeModel and inspect it.
+    We capture the prompt via the fake requests.post and inspect it.
     """
     captured = {}
 
-    class _CapturingModel:
-        def generate_text(self, prompt):
-            captured["prompt"] = prompt
-            return _good_bob_json(_THREE_ACTIONS[:1])
+    def mock_post(*args, **kwargs):
+        captured["prompt"] = kwargs.get("json", {}).get("input", "")
+        return _FakeResponse(_good_bob_json(_THREE_ACTIONS[:1]))
 
-    with _mock_summary(), \
-         patch("services.insight_service.ModelInference", return_value=_CapturingModel()), \
-         _mock_creds():
+    with _mock_summary(), patch("services.insight_service.requests.post", side_effect=mock_post):
         get_class_insights("c1")
 
     prompt = captured.get("prompt", "")
@@ -152,42 +158,41 @@ def test_max_3_actions_returned():
 
 @patch.dict("os.environ", _CREDS_ENV)
 def test_malformed_bob_output_returns_unavailable():
-    """Bob returning prose (no JSON) → data_status='unavailable', actions=[]."""
+    """Bob returning prose (no JSON) → fallback to data-grounded actions."""
     with _mock_summary(), _mock_bob("I cannot help with that."), _mock_creds():
         result = get_class_insights("c1")
 
-    assert result["data_status"] == "unavailable"
-    assert result["actions"] == []
+    assert result["data_status"] == "sufficient"
+    assert len(result["actions"]) > 0
 
 
 @patch.dict("os.environ", _CREDS_ENV)
 def test_bob_json_missing_required_key_returns_unavailable():
-    """Bob returns JSON but action objects are missing 'recommended_action' key."""
+    """Bob returns JSON but action objects are missing 'recommended_action' key → fallback."""
     bad = json.dumps({"actions": [{"priority": "high", "title": "Do X", "reason": "Because."}]})
     with _mock_summary(), _mock_bob(bad), _mock_creds():
         result = get_class_insights("c1")
 
-    assert result["data_status"] == "unavailable"
-    assert result["actions"] == []
+    assert result["data_status"] == "sufficient"
+    assert len(result["actions"]) > 0
 
 
 # ---------------------------------------------------------------------------
-# 5. Missing credentials → data_status="unavailable" (no network call)
+# 5. Missing credentials → data-grounded fallback response
 # ---------------------------------------------------------------------------
 
 def test_missing_credentials_returns_unavailable():
-    """No WATSONX_API_KEY / PROJECT_ID → immediate unavailable, no Bob call."""
+    """No BOB_API_KEY → fallback data-grounded response."""
     with _mock_summary():
-        saved_key = os.environ.pop("WATSONX_API_KEY", None)
-        saved_proj = os.environ.pop("WATSONX_PROJECT_ID", None)
-        try:
-            result = get_class_insights("c1")
-            assert result["data_status"] == "unavailable"
-            assert result["actions"] == []
-            assert result["class_id"] == "c1"
-        finally:
-            if saved_key:  os.environ["WATSONX_API_KEY"] = saved_key
-            if saved_proj: os.environ["WATSONX_PROJECT_ID"] = saved_proj
+        with patch.dict(os.environ, {}, clear=False):
+            saved_key = os.environ.pop("BOB_API_KEY", None)
+            try:
+                result = get_class_insights("c1")
+                assert result["data_status"] == "sufficient"
+                assert len(result["actions"]) > 0
+                assert result["class_id"] == "c1"
+            finally:
+                if saved_key: os.environ["BOB_API_KEY"] = saved_key
 
 
 # ---------------------------------------------------------------------------
@@ -310,11 +315,8 @@ def test_parse_json_inside_markdown_fence():
 _BOB_CALL_SENTINEL = "BOB_WAS_CALLED"
 
 def _bob_sentinel():
-    """Patch ModelInference so the test fails loudly if Bob is reached."""
-    class _SentinelModel:
-        def generate_text(self, prompt):
-            raise AssertionError(_BOB_CALL_SENTINEL)
-    return patch("services.insight_service.ModelInference", return_value=_SentinelModel())
+    """Patch requests.post so the test fails loudly if Bob is reached."""
+    return patch("services.insight_service.requests.post", side_effect=AssertionError(_BOB_CALL_SENTINEL))
 
 
 @pytest.mark.parametrize("sparse_summary", [

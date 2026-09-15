@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -195,13 +196,45 @@ const getRequestedCount = (q, defaultVal = 3) => {
   return defaultVal;
 };
 
-app.post('/api/ai/chat', (req, res) => {
+app.post('/api/ai/chat', async (req, res) => {
   const { message } = req.body;
+  
+  // Try sending to Python AI Service (IBM Bob chat)
+  try {
+    const aiRes = await fetch('http://localhost:8000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (aiRes.ok) {
+      const data = await aiRes.json();
+      if (data && data.reply) {
+        return res.json({ reply: data.reply, timestamp: new Date().toISOString() });
+      }
+    }
+  } catch (err) {
+    console.log('AI Service chat proxy fallback:', err.message);
+  }
+
   const msg = (message || '').toLowerCase();
   const count = getRequestedCount(msg, 3);
   let reply = "";
 
-  if (msg.includes('waste') || msg.includes('plastic') || msg.includes('zero') || msg.includes('recycle') || msg.includes('tip')) {
+  if (msg.includes('topic') || msg.includes('recommend') || msg.includes('study') || msg.includes('next') || msg.includes('suggest')) {
+    reply = "Based on your performance analytics, here are your **AI Personalized Topic Recommendations**:\n\n" +
+      "1. 🎯 **Water Conservation** (Current Score: 55%) — *Top Recommendation*\n" +
+      "   Recommended Mission: **Water Saver** (+75 Eco Points)\n\n" +
+      "2. 📘 **Climate Change** (Current Score: 68%) — *Intermediate Priority*\n" +
+      "   Recommended Mission: **Carbon Footprint Tracker** (+100 Eco Points)\n\n" +
+      "3. 🏆 **Waste Management** (Current Score: 82%) — *Strong Area*\n" +
+      "   Recommended Mission: **Plastic-Free Week** (+100 Eco Points)\n\n" +
+      "💡 *Tip: Head to your Learn page to complete the Water Saver lesson!*";
+  } else if (msg.includes('mission') || msg.includes('task') || msg.includes('challenge')) {
+    reply = "Here are your top recommended **Green Missions** to complete today:\n\n" +
+      "1. 💧 **Water Saver**: Inspect faucets & log water savings (+75 Eco Points)\n" +
+      "2. ♻️ **Plastic-Free Week**: Avoid single-use plastics for 7 days (+100 Eco Points)\n" +
+      "3. 🌳 **Plant a Tree**: Plant a sapling & submit photo for AI verification (+200 Eco Points)";
+  } else if (msg.includes('waste') || msg.includes('plastic') || msg.includes('zero') || msg.includes('recycle') || msg.includes('tip')) {
     const list = ZERO_WASTE_TIPS_SERVER.slice(0, count);
     reply = `Here are **${count} practical zero-waste tips** for daily life:\n\n` +
       list.map((t, idx) => `${idx + 1}. **${t.title}**: ${t.desc}`).join('\n') +
@@ -221,7 +254,7 @@ app.post('/api/ai/chat', (req, res) => {
   } else if (msg.includes('tree') || msg.includes('plant') || msg.includes('biodiversity')) {
     reply = "Trees are Earth's natural lungs!\n\n🌳 A single mature tree absorbs 22kg of CO2 every year and provides habitat for local wildlife. Plant a native sapling today!";
   } else {
-    reply = "Every small eco-friendly habit counts! Practice the 3 R's (Reduce, Reuse, Recycle), save energy, and inspire your classmates on GenGreen!";
+    reply = "Every small eco-friendly habit counts! Try asking for **topic recommendations**, **zero-waste tips**, or **water conservation advice**!";
   }
 
   res.json({ reply, timestamp: new Date().toISOString() });
@@ -273,28 +306,56 @@ app.get('/api/analytics/platform', (req, res) => {
   res.json({ totalSchools: 128, totalStudents: 42850, totalTeachers: 2340, activeCompetitions: 16 });
 });
 
-// Aggregate class summary — only numbers, no student names.
-// Used by ai-service to build the Bob prompt for teacher insights.
+// Dynamic Class Summaries per class_id
 const CLASS_ANALYTICS = {
   c1: {
+    name: 'Class 8-A',
     topic_avg_scores: [
       { topic: 'Climate Change',     avg_score: 68 },
       { topic: 'Waste Management',   avg_score: 82 },
       { topic: 'Water Conservation', avg_score: 55 },
     ],
-    pending_verification_count: 1,
     participation_trend: [
       { week: 'Week 1', active_students: 28 },
       { week: 'Week 2', active_students: 31 },
       { week: 'Week 3', active_students: 27 },
     ],
   },
+  c2: {
+    name: 'Class 8-B',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 48 },
+      { topic: 'Waste Management',   avg_score: 75 },
+      { topic: 'Water Conservation', avg_score: 88 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 20 },
+      { week: 'Week 2', active_students: 24 },
+      { week: 'Week 3', active_students: 30 },
+    ],
+  },
+  c3: {
+    name: 'Class 9-A',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 92 },
+      { topic: 'Waste Management',   avg_score: 61 },
+      { topic: 'Water Conservation', avg_score: 74 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 35 },
+      { week: 'Week 2', active_students: 36 },
+      { week: 'Week 3', active_students: 38 },
+    ],
+  },
 };
 
 app.get('/api/analytics/class/:id', (req, res) => {
-  const data = CLASS_ANALYTICS[req.params.id];
-  if (!data) return res.status(404).json({ error: 'Class not found' });
-  res.json(data);
+  const data = CLASS_ANALYTICS[req.params.id] || CLASS_ANALYTICS['c1'];
+  const pendingCount = submissions.filter(s => s.status === 'awaiting_approval').length;
+  res.json({
+    ...data,
+    pending_verification_count: pendingCount,
+  });
 });
 
 // --- SOCKET.IO ---

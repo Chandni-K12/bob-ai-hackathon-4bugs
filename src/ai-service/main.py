@@ -7,6 +7,7 @@ import random
 import bob_service
 from services.mentor_service import get_personalized_recommendation
 from services.insight_service import get_class_insights
+from services.chat_service import get_chat_reply
 
 app = FastAPI(title="GenGreen AI Service", version="1.0.0")
 
@@ -61,6 +62,12 @@ class ClassInsightsResponse(BaseModel):
     class_id: str
     actions: List[ActionItem]
     data_status: str  # "sufficient" | "insufficient" | "unavailable"
+
+class ChatRequest(BaseModel):
+    message: str
+
+class ChatResponse(BaseModel):
+    reply: str
 
 # --- Routes ---
 
@@ -181,6 +188,13 @@ def personalize_learning(req: PersonalizeLearningRequest):
     'unable to personalise right now' response — never fabricates a recommendation.
     """
     return PersonalizeLearningResponse(**get_personalized_recommendation(req))
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest):
+    """
+    Calls IBM Bob to answer student questions in real-time.
+    """
+    return ChatResponse(reply=get_chat_reply(req.message))
 
 @app.get("/health")
 def health():

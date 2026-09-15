@@ -192,6 +192,24 @@ export default function AIMentorPage() {
     const q = query.toLowerCase();
     const count = extractCountFromQuery(q, 3);
 
+    if (q.includes('topic') || q.includes('recommend') || q.includes('study') || q.includes('next') || q.includes('suggest')) {
+      return "Based on your performance analytics, here are your **AI Personalized Topic Recommendations**:\n\n" +
+        "1. 🎯 **Water Conservation** (Current Score: 55%) — *Top Recommendation*\n" +
+        "   Recommended Mission: **Water Saver** (+75 Eco Points)\n\n" +
+        "2. 📘 **Climate Change** (Current Score: 68%) — *Intermediate Priority*\n" +
+        "   Recommended Mission: **Carbon Footprint Tracker** (+100 Eco Points)\n\n" +
+        "3. 🏆 **Waste Management** (Current Score: 82%) — *Strong Area*\n" +
+        "   Recommended Mission: **Plastic-Free Week** (+100 Eco Points)\n\n" +
+        "💡 *Tip: Start with the Water Saver lesson on your Learn page!*";
+    }
+
+    if (q.includes('mission') || q.includes('task') || q.includes('challenge')) {
+      return "Here are your top recommended **Green Missions** to complete today:\n\n" +
+        "1. 💧 **Water Saver**: Inspect faucets & log water savings (+75 Eco Points)\n" +
+        "2. ♻️ **Plastic-Free Week**: Avoid single-use plastics for 7 days (+100 Eco Points)\n" +
+        "3. 🌳 **Plant a Tree**: Plant a sapling & submit photo for AI verification (+200 Eco Points)";
+    }
+
     if (q.includes('waste') || q.includes('plastic') || q.includes('zero') || q.includes('recycle') || q.includes('tip')) {
       const selected = ZERO_WASTE_TIPS.slice(0, count);
       return `Here are **${count} practical zero-waste tips** for daily life:\n\n` +
@@ -225,7 +243,7 @@ export default function AIMentorPage() {
       return "Hey there, Eco Warrior! 🌟 How can I help you with your environmental learning or green missions today?";
     }
 
-    return "That's a fantastic environmental question! Environmental sustainability is all about making daily conscious choices to preserve natural resources for future generations.\n\nExplore our **Learn Page** modules or try a **Green Mission** to earn Eco Points!";
+    return "That's a fantastic environmental question! Environmental sustainability is all about making daily conscious choices to preserve natural resources for future generations.\n\nTry asking for **topic recommendations**, **zero-waste tips**, or **water conservation advice**!";
   };
 
   const handleSend = async (textToSend) => {

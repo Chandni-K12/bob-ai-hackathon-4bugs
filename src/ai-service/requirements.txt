@@ -2,13 +2,7 @@ fastapi==0.104.1
 uvicorn==0.24.0
 pydantic==2.5.2
 requests==2.31.0
-ibm-watsonx-ai
 python-dotenv
-
-# httpx must stay in the 0.27.x range:
-#   - ibm-watsonx-ai 1.7.x uses httpx._types.ProxyTypes (removed in 0.28)
-#   - fastapi 0.104.1 TestClient (starlette 0.27) works with 0.27.x
-httpx>=0.27.0,<0.28.0
 
 # Test dependencies
 pytest
