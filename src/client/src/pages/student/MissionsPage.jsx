@@ -9,11 +9,13 @@ const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { st
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 const missionTypeMap = {
-  'm5': 'tree_plantation',
-  'm3': 'waste_segregation',
-  'm2': 'water_conservation',
-  'm7': 'clean_campus',
-  'm4': 'green_transport',
+  'm1': 'tree_plantation',       // Plant a Tree Sapling
+  'm2': 'waste_segregation',     // Waste Segregation Week
+  'm3': 'water_conservation',    // Water Audit at Home
+  'm4': 'clean_campus',          // Clean-up Drive
+  'm5': 'energy_saving',         // Energy Saving Challenge
+  'm6': 'composting',            // Composting Starter
+  'm7': 'green_transport',       // Bicycle to School Week
 };
 
 /**
@@ -125,6 +127,20 @@ const MISSION_VERIFY_RULES = {
     check: (c) => !c.isScreenshot && (c.isOutdoor || c.outdoorRatio > 0.15),
     detected: ['Transport / pathway', 'Outdoor scene', 'Eco-friendly transit'],
     failMsg: 'The image does not appear to show green transport. Please upload a photo of bicycle, walking, or public transport usage.',
+  },
+  energy_saving: {
+    label: 'energy saving activity (meter reading, switched-off appliances, LED lights)',
+    /** Indoor or outdoor, not a dark screenshot; should show physical environment */
+    check: (c) => !c.isScreenshot && (c.outdoorRatio > 0.10 || c.brightRatio > 0.10),
+    detected: ['Electricity meter / appliance', 'Energy-efficient setup', 'Physical environment'],
+    failMsg: 'The image does not appear to show energy saving evidence. Please upload a photo of your meter reading, switched-off appliances, or energy-efficient setup.',
+  },
+  composting: {
+    label: 'composting activity (compost pit, kitchen waste, earthworms)',
+    /** Should show nature/organic tones — brown and green */
+    check: (c) => c.isNatureScene || c.brownRatio > 0.06 || (c.outdoorRatio > 0.15 && !c.isScreenshot),
+    detected: ['Compost pit / bin', 'Organic waste material', 'Soil / earth environment'],
+    failMsg: 'The image does not appear to show composting activity. Please upload a photo of your compost pit, kitchen waste setup, or vermicomposting bin.',
   },
 };
 
