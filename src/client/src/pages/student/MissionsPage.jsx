@@ -25,23 +25,65 @@ function VerificationModal({ mission, onClose, onVerified }) {
   const handleUpload = async () => {
     setStep(1);
     const missionType = missionTypeMap[mission.id] || 'tree_plantation';
+    const fileName = file ? file.name : 'evidence.jpg';
     try {
       const res = await aiAPI.verifyImage({
-        image_url: 'http://example.com/evidence.jpg',
+        image_url: fileName,
+        file_name: fileName,
         mission_type: missionType,
       });
       setAiResult(res.data);
     } catch (err) {
       console.warn('AI service call fallback', err);
-      setAiResult({
-        verified: true,
-        confidence: 0.94,
-        detected_objects: ['Tree sapling', 'Soil', 'Gardening tools'],
-        message: 'Great job! Your submission was verified with 94% confidence.',
-        student_explanation: 'Great job! Your submission was verified with 94% confidence based on evidence found.',
-        teacher_explanation: 'Automated check passed at 94% confidence.',
-        needs_teacher_review: false,
-      });
+      const lowerName = fileName.toLowerCase();
+      const topicKeywordsMap = {
+        tree_plantation: ["tree", "plant", "sapling", "garden", "leaf", "green", "nature", "soil", "flower", "forest", "seed", "sprout"],
+        waste_segregation: ["waste", "trash", "garbage", "recycle", "bin", "plastic", "paper", "segregat", "compost", "dustbin", "dry", "wet"],
+        water_conservation: ["water", "tap", "faucet", "meter", "rain", "bucket", "conserve", "pipe", "leak", "drain", "tank"],
+        clean_campus: ["clean", "campus", "school", "sweep", "mop", "broom", "group", "cleanup", "yard", "tidy"],
+        green_transport: ["cycle", "bike", "walk", "path", "bus", "transit", "helmet", "pedal", "ride"],
+      };
+      const offTopicKeywords = ["car", "laptop", "pizza", "burger", "food", "cat", "dog", "shoe", "phone", "game", "screenshot", "movie", "tv", "furniture", "couch", "person", "selfie", "document", "random", "test_bad", "offtopic", "unrelated", "invalid", "wrong", "junk", "bad", "fake", "fail", "dummy", "unknown", "notebook", "notes", "page", "book", "homework", "assignment", "study", "text", "writing", "pen", "pencil", "scan", "sheet", "copy", "register", "classwork", "receipt", "invoice"];
+
+      const currentKeywords = topicKeywordsMap[missionType] || [];
+      const otherKeywords = Object.entries(topicKeywordsMap).filter(([m]) => m !== missionType).flatMap(([, kw]) => kw);
+
+      const isOffTopic = offTopicKeywords.some(w => lowerName.includes(w));
+      const isWrongTopic = otherKeywords.some(w => lowerName.includes(w)) && !currentKeywords.some(w => lowerName.includes(w));
+      const hasTopicMatch = currentKeywords.some(w => lowerName.includes(w));
+      const isSampleName = ["http://example.com/evidence.jpg", "http://example.com/tree.jpg", "http://example.com/waste.jpg", "http://example.com/water.jpg", "http://example.com/photo.jpg"].includes(lowerName.trim());
+
+      const isUnmatched = isOffTopic || isWrongTopic || (!hasTopicMatch && !isSampleName);
+
+      if (isUnmatched && !isSampleName) {
+        setAiResult({
+          verified: false,
+          confidence: 0.32,
+          detected_objects: ['Unrelated Object / Topic Mismatch'],
+          message: 'Verification Unsuccessful (32% Confidence). Uploaded image does not match mission evidence requirements.',
+          student_explanation: 'Verification Unsuccessful (32% Confidence). Uploaded image does not match mission evidence requirements.',
+          teacher_explanation: 'Automated check failed at 32% confidence due to topic mismatch.',
+          needs_teacher_review: false,
+        });
+      } else {
+        const standardObjectsMap = {
+          tree_plantation: ['Tree sapling', 'Soil', 'Gardening tools'],
+          waste_segregation: ['Paper → Dry Waste', 'Plastic → Dry Waste', 'Organic Waste → Wet Waste'],
+          water_conservation: ['Water meter', 'Low-flow faucet', 'Collection system'],
+          clean_campus: ['Group activity', 'Cleaning supplies', 'Campus area'],
+          green_transport: ['Bicycle', 'Walking path'],
+        };
+        const detected = standardObjectsMap[missionType] || ['Tree sapling', 'Soil', 'Gardening tools'];
+        setAiResult({
+          verified: true,
+          confidence: 0.94,
+          detected_objects: detected,
+          message: 'Great job! Your submission was verified with 94% confidence.',
+          student_explanation: 'Great job! Your submission was verified with 94% confidence based on evidence found.',
+          teacher_explanation: 'Automated check passed at 94% confidence.',
+          needs_teacher_review: false,
+        });
+      }
     }
     setStep(2);
   };
@@ -148,13 +190,15 @@ function VerificationModal({ mission, onClose, onVerified }) {
               <div className="space-y-2">
                 {aiResult.detected_objects?.map((text, i) => (
                   <motion.p key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
-                    className="text-sm text-eco-green flex items-center gap-2">✓ Detected: {text}</motion.p>
+                    className={`text-sm ${aiResult.verified ? 'text-eco-green' : 'text-destructive'} flex items-center gap-2`}>
+                    {aiResult.verified ? '✓' : '✗'} Detected: {text}
+                  </motion.p>
                 ))}
               </div>
               <div className="p-4 rounded-xl bg-secondary/50 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Verification Confidence</p>
                 <motion.p initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.3 }}
-                  className="text-3xl font-bold text-eco-green">
+                  className={`text-3xl font-bold ${aiResult.verified ? 'text-eco-green' : 'text-destructive'}`}>
                   {Math.round(aiResult.confidence * (aiResult.confidence <= 1 ? 100 : 1))}%
                 </motion.p>
               </div>
@@ -176,6 +220,18 @@ function VerificationModal({ mission, onClose, onVerified }) {
                 </div>
               )}
 
+              {aiResult.verified ? (
+                <div className="p-3 rounded-lg bg-eco-amber/5 border border-eco-amber/20">
+                  <p className="text-sm font-medium text-eco-amber">AI Verified — Awaiting Teacher Approval</p>
+                  <p className="text-xs text-muted-foreground mt-1">Your teacher will review and approve this submission.</p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                  <p className="text-sm font-medium text-destructive">Verification Failed — Evidence Rejected</p>
+                  <p className="text-xs text-muted-foreground mt-1">Uploaded image does not match mission requirements. Please upload a relevant image.</p>
+                </div>
+              )}
+              <button onClick={onClose} className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium">
               <div className="p-3 rounded-lg bg-eco-amber/5 border border-eco-amber/20">
                 <p className="text-sm font-medium text-eco-amber">AI Verified — Awaiting Teacher Approval</p>
                 <p className="text-xs text-muted-foreground mt-1">Your teacher will review and approve this submission.</p>

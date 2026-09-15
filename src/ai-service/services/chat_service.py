@@ -19,6 +19,11 @@ ZERO_WASTE_TIPS = [
     {"title": "Segregate Waste at Source", "desc": "Keep paper & plastic recyclables separate from wet kitchen waste."},
     {"title": "Compost Organic Scraps", "desc": "Turn fruit peels and vegetable scraps into nutrient-rich garden soil."},
     {"title": "Repurpose & Upcycle", "desc": "Reuse glass jars for storage and old t-shirts as cleaning rags."},
+    {"title": "Go Digital & Decline Paper Receipts", "desc": "Opt for digital receipts and digital notebooks for school."},
+    {"title": "Buy Package-Free Goods in Bulk", "desc": "Shop at bulk stations using your own reusable containers."},
+    {"title": "Repair Items Before Replacing", "desc": "Mend worn clothes and repair tools to extend their lifecycle."},
+    {"title": "Choose Natural Materials", "desc": "Prefer bamboo toothbrushes and wooden combs over plastic alternatives."},
+    {"title": "Donate & Share Unused Items", "desc": "Pass along old textbooks and clothes to schoolmates or shelters."},
 ]
 
 WATER_TIPS = [
@@ -26,18 +31,37 @@ WATER_TIPS = [
     {"title": "Fix Leaks Immediately", "desc": "A single dripping tap wastes 15+ liters of fresh water daily."},
     {"title": "Install Rainwater Harvesting", "desc": "Set up collection barrels at school and home to capture rain."},
     {"title": "Reuse RO Wastewater", "desc": "Collect reject water from purifiers to mop floors or water plants."},
+    {"title": "Take Shorter Showers", "desc": "Keep showers under 5 minutes or use a bucket and mug to control water use."},
 ]
 
 ENERGY_TIPS = [
     {"title": "Switch to LED Bulbs", "desc": "LED lights consume up to 80% less electricity than traditional bulbs."},
     {"title": "Unplug Phantom Electronics", "desc": "Disconnect chargers when not in use to stop standby power draw."},
     {"title": "Maximize Natural Daylight", "desc": "Open curtains during the day instead of turning on lights."},
+    {"title": "Set AC to 24°C–26°C", "desc": "Optimal air conditioner temperatures reduce compressor energy load."},
+    {"title": "Switch Off Unused Appliances", "desc": "Turn off lights, fans, and computers whenever leaving a room."},
 ]
+
+def _extract_count(q: str, default_val: int = 3) -> int:
+    digit = re.search(r"\b([1-9]|10)\b", q)
+    if digit:
+        return min(int(digit.group(1)), 10)
+    word_map = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10
+    }
+    for word, num in word_map.items():
+        if re.search(r"\b" + word + r"\b", q, re.IGNORECASE):
+            return num
+    return default_val
+
 
 def _smart_eco_fallback(message: str) -> str:
     msg = message.lower().strip()
-    
-    if any(k in msg for k in ["topic", "recommend", "study", "next", "suggest", "what should"]):
+    count = _extract_count(msg, 3)
+
+    # 1. Topic / Learning Recommendations
+    if any(k in msg for k in ["topic", "recommend", "study", "next", "suggest", "what should i learn", "course"]):
         return (
             "Based on your performance analytics, here are your **AI Personalized Topic Recommendations**:\n\n"
             "1. 🎯 **Water Conservation** (Current Score: 55%) — *Top Recommendation*\n"
@@ -48,8 +72,9 @@ def _smart_eco_fallback(message: str) -> str:
             "   Recommended Mission: **Plastic-Free Week** (+100 Eco Points)\n\n"
             "💡 *Tip: Head to your Learn page to start the Water Saver lesson!*"
         )
-    
-    if any(k in msg for k in ["mission", "task", "challenge", "assignment"]):
+
+    # 2. Missions / Tasks / Challenges
+    if any(k in msg for k in ["mission", "task", "challenge", "assignment", "activity"]):
         return (
             "Here are your top recommended **Green Missions** to complete today:\n\n"
             "1. 💧 **Water Saver**: Inspect faucets & log water savings (+75 Eco Points)\n"
@@ -57,34 +82,75 @@ def _smart_eco_fallback(message: str) -> str:
             "3. 🌳 **Plant a Tree**: Plant a sapling & submit photo for AI verification (+200 Eco Points)"
         )
 
-    if any(k in msg for k in ["waste", "plastic", "recycle", "trash", "zero"]):
-        tips_str = "\n".join([f"{i+1}. **{t['title']}**: {t['desc']}" for i, t in enumerate(ZERO_WASTE_TIPS[:3])])
-        return f"Here are practical zero-waste actions you can take today:\n\n{tips_str}\n\n♻️ *Every item kept out of landfills protects our oceans!*"
+    # 3. Waste & Recycling
+    if any(k in msg for k in ["waste", "plastic", "recycle", "trash", "zero", "litter", "garbage"]):
+        selected = ZERO_WASTE_TIPS[:count]
+        tips_str = "\n".join([f"{i+1}. **{t['title']}**: {t['desc']}" for i, t in enumerate(selected)])
+        return f"Here are **{len(selected)} practical zero-waste actions** for daily life:\n\n{tips_str}\n\n♻️ *Every item kept out of landfills protects our oceans and wildlife!*"
 
-    if any(k in msg for k in ["water", "rain", "conserve", "tap", "leak"]):
-        tips_str = "\n".join([f"{i+1}. **{t['title']}**: {t['desc']}" for i, t in enumerate(WATER_TIPS[:3])])
-        return f"Here are essential water conservation tips:\n\n{tips_str}\n\n💧 *Protect every drop!*"
+    # 4. Water Conservation
+    if any(k in msg for k in ["water", "rain", "conserve", "tap", "leak", "harvest", "shower", "faucet"]):
+        selected = WATER_TIPS[:count]
+        tips_str = "\n".join([f"{i+1}. **{t['title']}**: {t['desc']}" for i, t in enumerate(selected)])
+        return f"Here are **{len(selected)} essential water conservation tips**:\n\n{tips_str}\n\n💧 *Protect every drop!*"
 
-    if any(k in msg for k in ["energy", "electricity", "power", "solar", "bulb"]):
-        tips_str = "\n".join([f"{i+1}. **{t['title']}**: {t['desc']}" for i, t in enumerate(ENERGY_TIPS[:3])])
-        return f"Here are key energy-saving actions:\n\n{tips_str}\n\n⚡ *Save power, protect the planet!*"
+    # 5. Energy & Solar
+    if any(k in msg for k in ["energy", "electricity", "power", "solar", "bulb", "appliances", "light"]):
+        selected = ENERGY_TIPS[:count]
+        tips_str = "\n".join([f"{i+1}. **{t['title']}**: {t['desc']}" for i, t in enumerate(selected)])
+        return f"Here are **{len(selected)} key energy-saving actions** for home and school:\n\n{tips_str}\n\n⚡ *Save power, protect the planet!*"
 
-    if any(k in msg for k in ["climate", "warming", "co2", "carbon", "temperature"]):
+    # 6. Climate Change / Carbon / Global Warming
+    if any(k in msg for k in ["climate", "warming", "co2", "carbon", "greenhouse", "atmosphere", "temperature"]):
         return (
-            "Global warming happens when greenhouse gases like Carbon Dioxide (CO2) trap heat in our atmosphere. "
-            "To combat climate change:\n\n"
-            "1. **Use Green Transport**: Walk, cycle, or take public transit for short trips.\n"
-            "2. **Reduce Power Consumption**: Switch off unused lights and appliances.\n"
-            "3. **Plant Native Trees**: Trees absorb CO2 and release clean oxygen!\n\n"
-            "🌍 Every small habit makes a big difference!"
+            "**Global Warming & Climate Action**:\n\n"
+            "Global warming happens when greenhouse gases (like CO2 and Methane) trap heat in Earth's atmosphere. "
+            "This leads to rising sea levels, extreme heatwaves, and shifting weather patterns.\n\n"
+            "🌱 **Key Actions You Can Take**:\n"
+            "1. Walk or cycle for short distances to cut transportation emissions.\n"
+            "2. Reduce energy consumption at home and school.\n"
+            "3. Plant trees — natural carbon sinks that absorb CO2!\n\n"
+            "🌍 *Every small green action contributes to a sustainable future!*"
         )
 
-    if any(k in msg for k in ["hi", "hello", "hey", "greetings"]):
-        return "Hello Eco Warrior! 🌿 I am your AI Eco Mentor. Ask me about **topic recommendations**, **green missions**, **recycling**, or **climate action**!"
+    # 7. Trees / Biodiversity / Forests / Wildlife
+    if any(k in msg for k in ["tree", "plant", "forest", "biodiversity", "animal", "wildlife", "nature", "ecosystem", "bee", "species"]):
+        return (
+            "**Trees & Ecosystem Protection**:\n\n"
+            "Trees and natural ecosystems are essential for life on Earth! A single mature tree absorbs roughly **22 kg of CO2 per year** "
+            "while producing clean oxygen for 2 human beings and providing shelter for local wildlife.\n\n"
+            "🌳 **Eco-Tip**: Plant native species in your school garden or neighborhood to support local pollinators and birds!"
+        )
 
+    # 8. Compost / Soil / Organic Scraps
+    if any(k in msg for k in ["compost", "soil", "food waste", "organic", "peel", "scraps"]):
+        return (
+            "**Composting & Soil Health**:\n\n"
+            "Composting turns organic kitchen waste (fruit peels, vegetable scraps, coffee grounds) into rich, fertile soil conditioner. "
+            "By composting, you prevent organic matter from decaying in landfills where it would create harmful methane gas.\n\n"
+            "🌱 **Quick Tip**: Mix green materials (kitchen scraps) with brown materials (dry leaves, cardboard) for healthy compost!"
+        )
+
+    # 9. Ocean / Marine / Sea / Plastic Pollution
+    if any(k in msg for k in ["ocean", "sea", "marine", "turtle", "fish", "river", "pollution"]):
+        return (
+            "**Ocean & Marine Conservation**:\n\n"
+            "Over 8 million tons of plastic enter our oceans every year, threatening sea turtles, fish, and marine ecosystems. "
+            "Most ocean plastic originates from land-based litter washed into storm drains.\n\n"
+            "🌊 **How to Help**: Stop using single-use plastic bottles, straws, and bags. Always dispose of litter responsibly!"
+        )
+
+    # 10. Greetings
+    if any(k in msg for k in ["hi", "hello", "hey", "greetings", "good morning", "good afternoon"]):
+        return "Hello Eco Warrior! 🌿 I am your AI Eco Mentor. How can I help you with your environmental learning, green missions, or daily eco-habits today?"
+
+    # 11. Intelligent fallback for ANY general question
+    clean_q = message.strip().rstrip('?')
     return (
-        f"Great question about '{message}'! Environmental sustainability relies on conscious daily choices to preserve natural resources.\n\n"
-        "Try asking me: *'Give me topic recommendations'*, *'What missions should I do?'*, or *'How can I save water at school?'*"
+        f"That is a great question about **'{clean_q}'**!\n\n"
+        f"In environmental science, understanding **{clean_q}** helps us make conscious daily choices to protect natural resources. "
+        "Every small habit — from reducing plastic waste to saving water — keeps ecosystems healthy for future generations.\n\n"
+        "💡 *Try asking me for topic recommendations, zero-waste tips, or water conservation advice!*"
     )
 
 
@@ -130,3 +196,4 @@ def get_chat_reply(message: str) -> str:
             logger.warning("IBM Bob chat call failed: %s — using smart fallback", exc)
 
     return _smart_eco_fallback(message)
+

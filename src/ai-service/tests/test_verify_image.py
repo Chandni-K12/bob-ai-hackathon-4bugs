@@ -137,6 +137,52 @@ def test_clear_fail_verified_false_honest_explanation():
     assert call_kwargs["verified"] is False
 
 
+def test_unrelated_image_verification_fails():
+    """
+    Uploading an off-topic or irrelevant image (e.g. pizza.jpg, car.png, random_doc.png)
+    for a mission must fail verification with low confidence and clear mismatch notice.
+    """
+    resp = client.post(
+        "/verify-image",
+        json={
+            "file_name": "pizza.jpg",
+            "image_url": "pizza.jpg",
+            "mission_type": "tree_plantation",
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["verified"] is False
+    assert data["confidence"] < 0.70
+    assert "Unrelated Object / Topic Mismatch" in data["detected_objects"]
+    assert "Verification Unsuccessful" in data["message"]
+
+
+def test_notebook_page_photo_verification_fails():
+    """
+    Uploading a photo of a notebook page / document / notes for Tree Plantation mission
+    must fail verification as off-topic evidence.
+    """
+    resp = client.post(
+        "/verify-image",
+        json={
+            "file_name": "notebook_page.jpg",
+            "image_url": "notebook_page.jpg",
+            "mission_type": "tree_plantation",
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["verified"] is False
+    assert data["confidence"] < 0.70
+    assert "Unrelated Object / Topic Mismatch" in data["detected_objects"]
+    assert "Verification Unsuccessful" in data["message"]
+
+
 # ---------------------------------------------------------------------------
 # Condition 3 — borderline confidence sets needs_teacher_review=True
 # ---------------------------------------------------------------------------
