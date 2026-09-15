@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Sparkles, TrendingUp, AlertTriangle, Target, Loader2, WifiOff, Inbox } from 'lucide-react';
+import { Brain, Sparkles, TrendingUp, AlertTriangle, Target, Loader2, WifiOff, Inbox, RefreshCw, Users } from 'lucide-react';
 import { aiAPI } from '../../services/api';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
@@ -13,53 +13,91 @@ const priorityConfig = {
   low:    { color: 'border-eco-teal',   bg: 'bg-eco-teal/5',   icon: Target,        iconColor: 'text-eco-teal',   label: 'Low Priority' },
 };
 
-// The teacher's class ID — in production this would come from auth context
-const CLASS_ID = 'c1';
+const CLASSES = [
+  { id: 'c1', name: 'Class 8-A' },
+  { id: 'c2', name: 'Class 8-B' },
+  { id: 'c3', name: 'Class 9-A' },
+];
 
 export default function InsightsPage() {
-  const [actions, setActions]       = useState([]);
-  const [dataStatus, setDataStatus] = useState(null); // null = loading
-  const [error, setError]           = useState(null);
+  const [selectedClass, setSelectedClass] = useState('c1');
+  const [actions, setActions]             = useState([]);
+  const [dataStatus, setDataStatus]       = useState(null); // null = loading
+  const [error, setError]                 = useState(null);
+  const [isRefreshing, setIsRefreshing]   = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    aiAPI.getClassInsights(CLASS_ID)
+  const fetchInsights = useCallback((classId) => {
+    setDataStatus(null);
+    setError(null);
+    setIsRefreshing(true);
+    aiAPI.getClassInsights(classId)
       .then(res => {
-        if (cancelled) return;
         setActions(res.data.actions ?? []);
         setDataStatus(res.data.data_status);
       })
       .catch(() => {
-        if (cancelled) return;
         setDataStatus('unavailable');
         setError('Could not reach the AI service.');
-      });
-    return () => { cancelled = true; };
+      })
+      .finally(() => setIsRefreshing(false));
   }, []);
 
-  const isLoading     = dataStatus === null;
-  const isUnavailable = dataStatus === 'unavailable';
+  useEffect(() => {
+    fetchInsights(selectedClass);
+  }, [selectedClass, fetchInsights]);
+
+  const isLoading      = dataStatus === null;
+  const isUnavailable  = dataStatus === 'unavailable';
   const isInsufficient = dataStatus === 'insufficient';
-  const isEmpty       = dataStatus === 'sufficient' && actions.length === 0;
+  const isEmpty        = dataStatus === 'sufficient' && actions.length === 0;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
-      <motion.div variants={item}>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Brain className="w-6 h-6 text-eco-purple" /> AI Class Insights
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">AI-generated insights based on student performance data</p>
+      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Brain className="w-6 h-6 text-eco-purple" /> AI Class Insights
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">AI-generated insights based on real-time class performance data</p>
+        </div>
+
+        {/* Dynamic Class Selector & Regenerate Button */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary border border-border">
+            <Users className="w-4 h-4 text-eco-purple" />
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="bg-transparent text-sm font-semibold outline-none cursor-pointer"
+            >
+              {CLASSES.map(c => (
+                <option key={c.id} value={c.id} className="bg-card text-foreground">{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => fetchInsights(selectedClass)}
+            disabled={isRefreshing}
+            className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-semibold flex items-center gap-1.5 shadow-md disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Regenerate AI Analysis
+          </motion.button>
+        </div>
       </motion.div>
 
       {/* Banner */}
       <motion.div variants={item} className="p-4 rounded-xl bg-eco-purple/5 border border-eco-purple/20 flex items-start gap-3">
         <Sparkles className="w-5 h-5 text-eco-purple shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-eco-purple">AI-Generated Insights</p>
+          <p className="text-sm font-medium text-eco-purple">Real-Time AI Class Reasoning</p>
           <p className="text-xs text-muted-foreground mt-1">
-            These insights are generated by analyzing class-wide performance data, quiz results,
-            mission completions, and learning patterns. They are meant to assist your teaching decisions.
+            These insights dynamically analyze class-wide performance data, pending verifications,
+            quiz accuracy, and participation trends to provide prioritized action items.
           </p>
         </div>
       </motion.div>

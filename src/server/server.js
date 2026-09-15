@@ -70,17 +70,22 @@ app.get('/api/missions', (req, res) => {
 });
 
 // --- SUBMISSIONS ---
-app.get('/api/submissions', (req, res) => {
-  res.json([
-    { id: 'sub1', studentName: 'Ananya Sharma', missionTitle: 'Plant a Tree', aiConfidence: 94, status: 'awaiting_approval' },
-  ]);
-});
+const submissions = [
+  { id: 'sub1', studentName: 'Ananya Sharma', missionTitle: 'Plant a Tree', aiConfidence: 94, status: 'awaiting_approval', location: 'Green Valley School', timestamp: new Date().toISOString(), detectedItems: ['Tree sapling', 'Soil', 'Gardening tools'] },
+  { id: 'sub2', studentName: 'Aarav Patel', missionTitle: 'Water Saver', aiConfidence: 75, status: 'awaiting_approval', location: 'Sunrise Academy', timestamp: new Date().toISOString(), detectedItems: ['Water meter', 'Low-flow faucet'] },
+];
+
+app.get('/api/submissions', (req, res) => res.json(submissions));
 
 app.put('/api/submissions/:id/approve', (req, res) => {
+  const sub = submissions.find(s => s.id === req.params.id);
+  if (sub) sub.status = 'approved';
   res.json({ success: true, message: 'Submission approved', pointsAwarded: 100 });
 });
 
 app.put('/api/submissions/:id/reject', (req, res) => {
+  const sub = submissions.find(s => s.id === req.params.id);
+  if (sub) sub.status = 'rejected';
   res.json({ success: true, message: 'Submission rejected' });
 });
 
@@ -154,8 +159,26 @@ const getRequestedCount = (q, defaultVal = 3) => {
   return defaultVal;
 };
 
-app.post('/api/ai/chat', (req, res) => {
+app.post('/api/ai/chat', async (req, res) => {
   const { message } = req.body;
+  
+  // Try sending to Python AI Service (IBM Bob chat)
+  try {
+    const aiRes = await fetch('http://localhost:8000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (aiRes.ok) {
+      const data = await aiRes.json();
+      if (data && data.reply) {
+        return res.json({ reply: data.reply, timestamp: new Date().toISOString() });
+      }
+    }
+  } catch (err) {
+    console.log('AI Service chat proxy fallback:', err.message);
+  }
+
   const msg = (message || '').toLowerCase();
   const count = getRequestedCount(msg, 3);
   let reply = "";
@@ -246,28 +269,56 @@ app.get('/api/analytics/platform', (req, res) => {
   res.json({ totalSchools: 128, totalStudents: 42850, totalTeachers: 2340, activeCompetitions: 16 });
 });
 
-// Aggregate class summary — only numbers, no student names.
-// Used by ai-service to build the Bob prompt for teacher insights.
+// Dynamic Class Summaries per class_id
 const CLASS_ANALYTICS = {
   c1: {
+    name: 'Class 8-A',
     topic_avg_scores: [
       { topic: 'Climate Change',     avg_score: 68 },
       { topic: 'Waste Management',   avg_score: 82 },
       { topic: 'Water Conservation', avg_score: 55 },
     ],
-    pending_verification_count: 1,
     participation_trend: [
       { week: 'Week 1', active_students: 28 },
       { week: 'Week 2', active_students: 31 },
       { week: 'Week 3', active_students: 27 },
     ],
   },
+  c2: {
+    name: 'Class 8-B',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 48 },
+      { topic: 'Waste Management',   avg_score: 75 },
+      { topic: 'Water Conservation', avg_score: 88 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 20 },
+      { week: 'Week 2', active_students: 24 },
+      { week: 'Week 3', active_students: 30 },
+    ],
+  },
+  c3: {
+    name: 'Class 9-A',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 92 },
+      { topic: 'Waste Management',   avg_score: 61 },
+      { topic: 'Water Conservation', avg_score: 74 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 35 },
+      { week: 'Week 2', active_students: 36 },
+      { week: 'Week 3', active_students: 38 },
+    ],
+  },
 };
 
 app.get('/api/analytics/class/:id', (req, res) => {
-  const data = CLASS_ANALYTICS[req.params.id];
-  if (!data) return res.status(404).json({ error: 'Class not found' });
-  res.json(data);
+  const data = CLASS_ANALYTICS[req.params.id] || CLASS_ANALYTICS['c1'];
+  const pendingCount = submissions.filter(s => s.status === 'awaiting_approval').length;
+  res.json({
+    ...data,
+    pending_verification_count: pendingCount,
+  });
 });
 
 // --- SOCKET.IO ---
