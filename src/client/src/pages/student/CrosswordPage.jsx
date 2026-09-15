@@ -35,6 +35,8 @@ export default function CrosswordPage() {
   const [started, setStarted] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [score, setScore] = useState(0);
+  const [earnedPoints, setEarnedPoints] = useState(0);
+  const [isRevealed, setIsRevealed] = useState(false);
   const GRID_SIZE = crosswordData.size;
 
   const changePuzzle = (topic, level) => {
@@ -47,6 +49,8 @@ export default function CrosswordPage() {
     setStarted(false);
     setCompleted(false);
     setScore(0);
+    setEarnedPoints(0);
+    setIsRevealed(false);
   };
 
   const handleTopicChange = (topic) => {
@@ -86,14 +90,24 @@ export default function CrosswordPage() {
         }
       }
     }
-    const pct = Math.round((correct / total) * 100);
+    const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    // Base points scaled by accuracy (up to 50 points); 0% accuracy earns 0 points
+    const basePoints = pct > 0 ? Math.round(pct * 0.5) : 0;
+    // Speed bonus (+50 points) is only awarded if fully solved (100%) under 5 minutes (300s)
+    const speedBonus = (pct === 100 && timer <= 300) ? 50 : 0;
+    const totalPoints = basePoints + speedBonus;
+
     setScore(pct);
+    setEarnedPoints(totalPoints);
+    setIsRevealed(false);
     setCompleted(true);
   };
 
   const revealAll = () => {
     setUserGrid(grid.map(row => row.map(cell => cell ? cell.letter : null)));
     setScore(100);
+    setEarnedPoints(0);
+    setIsRevealed(true);
     setCompleted(true);
   };
 
@@ -103,6 +117,8 @@ export default function CrosswordPage() {
     setStarted(false);
     setCompleted(false);
     setScore(0);
+    setEarnedPoints(0);
+    setIsRevealed(false);
   };
 
   const filledCount = userGrid.flat().filter(c => c && c.length > 0).length;
@@ -154,14 +170,31 @@ export default function CrosswordPage() {
             <CheckCircle2 className="w-8 h-8 text-white" />
           </motion.div>
           <h2 className="text-xl font-bold mb-1">
-            {score === 100 ? '🎉 Perfect!' : score >= 70 ? '👏 Great Job!' : '💪 Keep Trying!'}
+            {isRevealed ? '👀 Answers Revealed' : score === 100 ? '🎉 Perfect!' : score >= 70 ? '👏 Great Job!' : '💪 Keep Trying!'}
           </h2>
-          <p className="text-muted-foreground text-sm mb-3">Score: {score}% • Time: {formatTime(timer)}</p>
+          <p className="text-muted-foreground text-sm mb-3">
+            {isRevealed ? 'Solution shown • Try solving on your own!' : `Score: ${score}% • Time: ${formatTime(timer)}`}
+          </p>
           <motion.p initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: 'spring' }}
-            className="text-2xl font-bold text-eco-green">+{Math.round(score * 0.5 + 50)} Eco Points</motion.p>
-          <button onClick={resetPuzzle} className="mt-4 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-sm flex items-center gap-2 mx-auto">
-            <RotateCcw className="w-4 h-4" /> Play Again
-          </button>
+            className={`text-2xl font-bold ${earnedPoints > 0 ? 'text-eco-green' : 'text-muted-foreground'}`}>
+            +{earnedPoints} Eco Points
+          </motion.p>
+          {earnedPoints > 50 && (
+            <p className="text-xs text-eco-amber mt-1 font-medium">⚡ Includes +50 speed bonus for finishing under 5 minutes!</p>
+          )}
+          {earnedPoints === 0 && !isRevealed && (
+            <p className="text-xs text-muted-foreground mt-1">Get letters right to earn Eco Points.</p>
+          )}
+          <div className="flex items-center justify-center gap-3 mt-4">
+            {!isRevealed && score < 100 && (
+              <button onClick={() => setCompleted(false)} className="px-4 py-2 rounded-lg gradient-primary text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity">
+                Keep Trying
+              </button>
+            )}
+            <button onClick={resetPuzzle} className="px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-sm flex items-center gap-2">
+              <RotateCcw className="w-4 h-4" /> {score === 100 || isRevealed ? 'Play Again' : 'Reset'}
+            </button>
+          </div>
         </motion.div>
       )}
 
