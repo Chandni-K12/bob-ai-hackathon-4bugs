@@ -1,6 +1,4 @@
-# 🚀 [Your Project Title Here]
-
-> ⚠️ **Replace everything in `[ ]` brackets with your actual content before submission.**
+# 🚀 GenGreen — Gamified Environmental Education Platform
 
 ---
 
@@ -53,9 +51,10 @@
 
 | Category | Technologies |
 |---|---|
-| **Languages** | "JavaScript", "Python" |
-| **Frameworks** | "React", "Vite", "Tailwind CSS", "Express.js", "FastAPI" |
-| **IBM Technologies** | "IBM Bob" |
+| **Languages** | JavaScript, Python |
+| **Frontend** | React, Vite, Tailwind CSS, Radix UI, Framer Motion, Recharts, React Router, Axios, Leaflet |
+| **Backend** | Express.js, Socket.io, JSON Web Tokens |
+| **AI Layer** | FastAPI, IBM Bob |
 
 ---
 
@@ -79,24 +78,23 @@
 
 ## ⚡ How to Run
 
-> **Copy these exact steps from your [`docs/setup-guide.md`](docs/setup-guide.md)**
-
 ```bash
 # 1. Clone the repo
-git clone https://github.com/[your-repo].git
-cd [your-repo]
+git clone https://github.com/<your-org>/bob-ai-hackathon-gengreen.git
+cd bob-ai-hackathon-gengreen/src
 
 # 2. Install dependencies
-[your install command here]
+cd client && npm install && cd ../server && npm install && cd ../ai-service && pip install -r requirements.txt
 
 # 3. Configure environment
 cp .env.example .env
-# Edit .env with your values
+# Fill in WATSONX_API_KEY, WATSONX_PROJECT_ID, BOB_API_KEY, BOB_API_ENDPOINT
 
 # 4. Run the project
-[your run command here]
+cd ai-service && uvicorn main:app --reload --port 8000
+cd server && node server.js
+cd client && npm run dev
 ```
-
 ---
 
 ## 🖥️ Demo
@@ -112,11 +110,11 @@ cp .env.example .env
 
 ## ⚠️ Known Limitations
 
-> Be honest — judges appreciate transparency over overclaiming.
-
-- [Limitation 1: e.g., "Authentication is mocked — not production-ready"]
-- [Limitation 2: e.g., "Only tested on Chrome"]
-- [Limitation 3: e.g., "Feature X is scaffolded but not fully implemented"]
+- Gamification may not guarantee long-term behavioral change.
+- Limited offline functionality.
+- Different regional environmental challenges: Environmental priorities differ across India.
+- Different student interests and motivation levels.
+- Integration with existing school/college ERP systems, Learning Management Systems, student IDs, and institutional databases would be required for large-scale adoption.
 
 ---
 
