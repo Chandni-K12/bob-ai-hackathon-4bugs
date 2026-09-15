@@ -163,7 +163,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
     if (!file) return;
     setStep(1);
     const missionType = missionTypeMap[mission.id] || 'tree_plantation';
-    const fileName = file ? file.name : 'evidence.jpg';
     const rules = MISSION_VERIFY_RULES[missionType] || MISSION_VERIFY_RULES.tree_plantation;
 
     try {
@@ -171,7 +170,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
       const imageBase64 = await fileToBase64(file);
       const res = await aiAPI.verifyImage({
         image_url: imageBase64,
-
         mission_type: missionType,
         file_name: file.name,
         file_size: file.size,
@@ -402,7 +400,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
                   </p>
                 </div>
               )}
-
 
               <button
                 onClick={() => { if (aiResult?.verified) onVerified(mission.id, aiResult); else onClose(); }}

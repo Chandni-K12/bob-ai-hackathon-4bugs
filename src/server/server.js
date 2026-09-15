@@ -237,6 +237,77 @@ app.post('/api/ai/verify-image', async (req, res) => {
   });
 });
 
+app.get('/api/ai/class-insights/:classId', async (req, res) => {
+  const { classId } = req.params;
+
+  // Try the Python AI service first
+  try {
+    const aiRes = await fetch(`http://localhost:8000/class-insights/${classId}`, { method: 'GET' });
+    if (aiRes.ok) {
+      const data = await aiRes.json();
+      return res.json(data);
+    }
+  } catch (err) {
+    console.log('AI Service class-insights proxy fallback:', err.message);
+  }
+
+  // Node-side fallback: build data-grounded actions from the class analytics we already have
+  const summary = CLASS_ANALYTICS[classId] || CLASS_ANALYTICS['c1'];
+  const pendingCount = submissions.filter(s => s.status === 'awaiting_approval').length;
+  const actions = [];
+
+  if (pendingCount > 0) {
+    actions.push({
+      priority: 'high',
+      title: 'Review Pending Submissions',
+      reason: `There are ${pendingCount} submission${pendingCount > 1 ? 's' : ''} awaiting teacher approval.`,
+      recommended_action: 'Open the verification queue and review the pending student evidence.',
+    });
+  }
+
+  const validTopics = (summary.topic_avg_scores || []).filter(t => typeof t.avg_score === 'number');
+  if (validTopics.length > 0) {
+    const lowest = validTopics.reduce((a, b) => a.avg_score < b.avg_score ? a : b);
+    actions.push({
+      priority: 'medium',
+      title: `Address ${lowest.topic} Gap`,
+      reason: `${lowest.topic} average score is ${lowest.avg_score}%, the lowest in the class.`,
+      recommended_action: `Assign a review lesson or mission for ${lowest.topic} to reinforce learning.`,
+    });
+  }
+
+  const trend = summary.participation_trend || [];
+  if (trend.length >= 2) {
+    const last = trend[trend.length - 1].active_students;
+    const prev = trend[trend.length - 2].active_students;
+    if (last < prev) {
+      actions.push({
+        priority: 'low',
+        title: 'Boost Class Participation',
+        reason: `Active student count dipped from ${prev} to ${last} in the latest period.`,
+        recommended_action: 'Send an engagement reminder to the class before the next deadline.',
+      });
+    } else {
+      actions.push({
+        priority: 'low',
+        title: 'Maintain High Engagement',
+        reason: `Active student count reached ${last} in the latest week.`,
+        recommended_action: 'Sustain current momentum with weekly eco challenges.',
+      });
+    }
+  }
+
+  res.json({
+    class_id: classId,
+    class_name: summary.name,
+    actions: actions.slice(0, 3),
+    data_status: actions.length > 0 ? 'sufficient' : 'insufficient',
+    topic_avg_scores: summary.topic_avg_scores || [],
+    pending_verification_count: pendingCount,
+    participation_trend: summary.participation_trend || [],
+  });
+});
+
 app.post('/api/ai/chat', async (req, res) => {
   const { message } = req.body;
   
