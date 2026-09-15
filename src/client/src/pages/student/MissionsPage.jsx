@@ -147,29 +147,22 @@ function VerificationModal({ mission, onClose, onVerified }) {
     if (!file) return;
     setStep(1);
     const missionType = missionTypeMap[mission.id] || 'tree_plantation';
-<<<<<<< HEAD
     const fileName = file ? file.name : 'evidence.jpg';
-=======
     const rules = MISSION_VERIFY_RULES[missionType] || MISSION_VERIFY_RULES.tree_plantation;
 
->>>>>>> d91a495 (ai verification is done)
     try {
       // Try the AI backend first
       const imageBase64 = await fileToBase64(file);
       const res = await aiAPI.verifyImage({
-<<<<<<< HEAD
         image_url: fileName,
         file_name: fileName,
-=======
         image_url: imageBase64,
->>>>>>> d91a495 (ai verification is done)
         mission_type: missionType,
         file_name: file.name,
         file_size: file.size,
       });
       setAiResult(res.data);
     } catch (err) {
-<<<<<<< HEAD
       console.warn('AI service call fallback', err);
       const lowerName = fileName.toLowerCase();
       const topicKeywordsMap = {
@@ -217,7 +210,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
           message: 'Great job! Your submission was verified with 94% confidence.',
           student_explanation: 'Great job! Your submission was verified with 94% confidence based on evidence found.',
           teacher_explanation: 'Automated check passed at 94% confidence.',
-=======
       console.warn('AI service unavailable — running client-side image analysis', err);
 
       // ── Client-side image analysis using Canvas color sampling ──
@@ -261,7 +253,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
           message: rules.failMsg,
           student_explanation: rules.failMsg,
           teacher_explanation: `Client-side image analysis FAILED for "${missionType}". Color profile: ${Math.round(colors.darkRatio * 100)}% dark, ${Math.round(colors.greenRatio * 100)}% green, ${Math.round(colors.outdoorRatio * 100)}% outdoor. ${colors.isScreenshot ? 'Image appears to be a screenshot.' : 'Image content does not match mission evidence expectations.'} File: "${file.name}".`,
->>>>>>> d91a495 (ai verification is done)
           needs_teacher_review: false,
         });
       }
@@ -377,7 +368,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
                     <X className="w-8 h-8 text-destructive" />
                   )}
                 </motion.div>
-<<<<<<< HEAD
                 <h3 className="font-semibold text-lg">{aiResult.verified ? 'AI Verification Complete' : 'Verification Unsuccessful'}</h3>
               </div>
               <div className="space-y-2">
@@ -387,9 +377,7 @@ function VerificationModal({ mission, onClose, onVerified }) {
                     {aiResult.verified ? '✓' : '✗'} Detected: {text}
                   </motion.p>
                 ))}
-=======
                 <h3 className="font-semibold text-lg">{aiResult.verified ? 'Verification Passed!' : 'Verification Unsuccessful'}</h3>
->>>>>>> d91a495 (ai verification is done)
               </div>
 
               {/* Show detected objects only when there are some */}
@@ -417,11 +405,8 @@ function VerificationModal({ mission, onClose, onVerified }) {
               <div className="p-4 rounded-xl bg-secondary/50 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Verification Confidence</p>
                 <motion.p initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.3 }}
-<<<<<<< HEAD
                   className={`text-3xl font-bold ${aiResult.verified ? 'text-eco-green' : 'text-destructive'}`}>
-=======
                   className={`text-3xl font-bold ${aiResult.verified ? 'text-eco-green' : aiResult.confidence > 0.5 ? 'text-eco-amber' : 'text-destructive'}`}>
->>>>>>> d91a495 (ai verification is done)
                   {Math.round(aiResult.confidence * (aiResult.confidence <= 1 ? 100 : 1))}%
                 </motion.p>
               </div>
@@ -460,7 +445,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
                 </div>
               )}
 
-<<<<<<< HEAD
               {aiResult.verified ? (
                 <div className="p-3 rounded-lg bg-eco-amber/5 border border-eco-amber/20">
                   <p className="text-sm font-medium text-eco-amber">AI Verified — Awaiting Teacher Approval</p>
@@ -477,8 +461,6 @@ function VerificationModal({ mission, onClose, onVerified }) {
                 <p className="text-sm font-medium text-eco-amber">AI Verified — Awaiting Teacher Approval</p>
                 <p className="text-xs text-muted-foreground mt-1">Your teacher will review and approve this submission.</p>
               </div>
-=======
->>>>>>> d91a495 (ai verification is done)
               <button
                 onClick={() => { if (aiResult?.verified) onVerified(mission.id, aiResult); else onClose(); }}
                 className={`w-full py-3 rounded-xl text-sm font-medium ${
