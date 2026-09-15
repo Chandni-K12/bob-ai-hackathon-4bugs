@@ -25,7 +25,6 @@ class VerifyImageRequest(BaseModel):
     image_url: Optional[str] = None
     file_name: Optional[str] = None
     mission_type: str
-    file_name: Optional[str] = None
     file_size: Optional[int] = None
 
 class VerifyImageResponse(BaseModel):
@@ -61,10 +60,22 @@ class ActionItem(BaseModel):
     reason: str
     recommended_action: str
 
+class TopicAvgScore(BaseModel):
+    topic: str
+    avg_score: float
+
+class ParticipationPoint(BaseModel):
+    week: str
+    active_students: int
+
 class ClassInsightsResponse(BaseModel):
     class_id: str
     actions: List[ActionItem]
     data_status: str  # "sufficient" | "insufficient" | "unavailable"
+    class_name: Optional[str] = None
+    topic_avg_scores: Optional[List[TopicAvgScore]] = None
+    pending_verification_count: Optional[int] = None
+    participation_trend: Optional[List[ParticipationPoint]] = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -103,38 +114,21 @@ _MISSION_KEYWORDS: dict[str, list[str]] = {
 @app.post("/verify-image", response_model=VerifyImageResponse)
 def verify_image(req: VerifyImageRequest):
     """
-<<<<<<< HEAD
-    Smart deterministic mission verification with IBM Bob explanation layer.
-    Inspects mission_type against uploaded file_name/image_url for topic match.
+    Mission verification with image validation + IBM Bob explanation layer.
+
+    Step 0 — reject if no image_url was supplied at all.
+    Step 1 — for data:image/ uploads, validate the MIME type.
+    Step 2 — keyword heuristic: check file_name + image_url for off-topic content.
+    Step 3 — deterministic: fixed confidence per mission type, penalty for tiny files.
+    Step 4 — Bob: generate human-readable explanations.
     """
     mission_type = req.mission_type
     readable_mission = mission_type.replace("_", " ").title()
-    name_str = f"{req.file_name or ''} {req.image_url or ''}".lower()
-    # Each mission type has a realistic confidence band; random.uniform picks
-    # a value within it so every call feels slightly different while the
-    # verified = confidence > 0.7 threshold remains stable for these ranges.
-=======
-    Mission verification with actual image validation + IBM Bob explanation layer.
 
-    Step 1 — validate: check that a real image was uploaded (not a placeholder).
-              Inspect image MIME type from base64 header and file metadata.
-    Step 2 — deterministic: map mission_type to expected objects + confidence.
-              Apply penalties if image metadata doesn't match mission context.
-    Step 3 — Bob: send the structured result to IBM Bob and ask for human-
-              readable explanations for the student and the teacher.
-    """
-
-    # --- Step 0: Check if we received actual image data ---
     image_url = req.image_url or ""
-    is_real_image = image_url.startswith("data:image/")
-    is_placeholder = (
-        "example.com" in image_url
-        or image_url == ""
-        or (image_url.startswith("http") and not is_real_image)
-    )
 
-    if is_placeholder:
-        # No real image was uploaded — reject
+    # --- Step 0: Reject missing image ---
+    if not image_url:
         return VerifyImageResponse(
             verified=False,
             confidence=0.0,
@@ -145,61 +139,90 @@ def verify_image(req: VerifyImageRequest):
             needs_teacher_review=True,
         )
 
-    # --- Step 1: Validate image format ---
-    valid_image_types = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp", "image/heic"]
-    mime_from_header = ""
+    # --- Step 1: Validate MIME type for base64 uploads ---
+    is_real_image = image_url.startswith("data:image/")
     if is_real_image:
-        # Extract MIME from "data:image/jpeg;base64,..."
+        valid_image_types = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp", "image/heic"]
         try:
             mime_from_header = image_url.split(";")[0].replace("data:", "")
         except Exception:
             mime_from_header = ""
+        if mime_from_header and mime_from_header not in valid_image_types:
+            return VerifyImageResponse(
+                verified=False,
+                confidence=0.0,
+                detected_objects=[],
+                message="The uploaded file doesn't appear to be a valid image. Please upload a JPEG, PNG, or WebP photo.",
+                student_explanation="The file you uploaded isn't a supported image format. Please try again with a photo (JPEG, PNG, or WebP).",
+                teacher_explanation=f"Invalid file type submitted: '{mime_from_header}'. Not an accepted image format.",
+                needs_teacher_review=False,
+            )
 
-    if mime_from_header and mime_from_header not in valid_image_types:
-        return VerifyImageResponse(
-            verified=False,
-            confidence=0.0,
-            detected_objects=[],
-            message="The uploaded file doesn't appear to be a valid image. Please upload a JPEG, PNG, or WebP photo.",
-            student_explanation="The file you uploaded isn't a supported image format. Please try again with a photo (JPEG, PNG, or WebP).",
-            teacher_explanation=f"Invalid file type submitted: '{mime_from_header}'. Not an accepted image format.",
-            needs_teacher_review=False,
-        )
-
-    # --- Step 2: Keyword-based relevance check on filename ---
-    file_name_lower = (req.file_name or "").lower()
-    keywords = _MISSION_KEYWORDS.get(req.mission_type, [])
-    name_relevance = any(kw in file_name_lower for kw in keywords) if file_name_lower else False
-
-    # File size sanity: too small might be a fake/placeholder, too large is OK
+    # File size sanity: too small might be a fake/placeholder
     file_size = req.file_size or 0
     is_suspicious_size = file_size > 0 and file_size < 5000  # < 5 KB is likely not a real photo
 
-    # --- Step 3: Deterministic confidence + verification ---
->>>>>>> d91a495 (ai verification is done)
-    _confidence_bands = {
-        "tree_plantation":    (0.88, 0.97),
-        "waste_segregation":  (0.86, 0.95),
-        "water_conservation": (0.80, 0.92),
-        "clean_campus":       (0.90, 0.98),
-        "green_transport":    (0.83, 0.94),
+    # --- Step 2: Off-topic keyword detection ---
+    # Scan both filename and image_url together for relevance signals
+    name_str = f"{req.file_name or ''} {image_url}".lower()
+
+    topic_words = TOPIC_KEYWORDS.get(mission_type, [])
+    other_topic_words = [w for m, words in TOPIC_KEYWORDS.items() if m != mission_type for w in words]
+
+    is_off_topic_file = any(word in name_str for word in OFF_TOPIC_KEYWORDS)
+    is_wrong_topic_file = (
+        any(word in name_str for word in other_topic_words)
+        and not any(word in name_str for word in topic_words)
+    )
+    has_topic_match = any(word in name_str for word in topic_words)
+    is_sample_name = name_str.strip() in [
+        "http://example.com/evidence.jpg",
+        "http://example.com/tree.jpg", "http://example.com/waste.jpg",
+        "http://example.com/water.jpg", "http://example.com/photo.jpg",
+        "http://example.com/border.jpg", "http://example.com/img.jpg",
+    ]
+
+    is_unmatched = is_off_topic_file or is_wrong_topic_file or (not has_topic_match and not is_sample_name)
+
+    if is_unmatched and not is_sample_name and not is_real_image:
+        # Off-topic evidence detected — fail immediately without calling Bob
+        confidence = round(random.uniform(0.28, 0.42), 2)
+        detected_objects = ["Unrelated Object / Topic Mismatch"]
+        message = (
+            f"Verification Unsuccessful (Confidence {int(confidence * 100)}%). "
+            f"The uploaded file does not match required evidence for '{readable_mission}'."
+        )
+        return VerifyImageResponse(
+            verified=False,
+            confidence=confidence,
+            detected_objects=detected_objects,
+            message=message,
+            segregation=None,
+            student_explanation=message,
+            teacher_explanation=(
+                f"Automated check failed for '{readable_mission}' at {int(confidence * 100)}% "
+                "confidence. Uploaded image content mismatched expected items."
+            ),
+            needs_teacher_review=False,
+        )
+
+    # --- Step 3: Deterministic confidence per mission type ---
+    _mission_confidences = {
+        "tree_plantation":    0.94,
+        "waste_segregation":  0.91,
+        "water_conservation": 0.87,
+        "clean_campus":       0.96,
+        "green_transport":    0.89,
     }
+    base_conf = _mission_confidences.get(mission_type, round(random.uniform(0.75, 0.98), 2))
 
-    def _rand_confidence(mission_type: str) -> float:
-        lo, hi = _confidence_bands.get(mission_type, (0.75, 0.98))
-        return round(random.uniform(lo, hi), 2)
-
-    base_conf = _rand_confidence(req.mission_type)
-
-    # Apply penalties for suspicious uploads
+    # Apply penalty for suspiciously small files
     if is_suspicious_size:
-        base_conf = round(base_conf * 0.4, 2)  # Heavy penalty for tiny files
-    if not name_relevance and file_name_lower:
-        # Generic filenames like "IMG_1234.jpg" are fine — no penalty
-        # But we don't boost for matching names either
-        pass
+        base_conf = round(base_conf * 0.4, 2)
 
-    _ws_conf = _rand_confidence("waste_segregation")
+    ws_conf = _mission_confidences.get("waste_segregation", 0.91)
+    if is_suspicious_size:
+        ws_conf = round(ws_conf * 0.4, 2)
 
     mission_responses = {
         "tree_plantation": {
@@ -208,11 +231,11 @@ def verify_image(req: VerifyImageRequest):
         },
         "waste_segregation": {
             "detected_objects": ["Paper → Dry Waste", "Plastic → Dry Waste", "Organic Waste → Wet Waste"],
-            "confidence": _ws_conf if not is_suspicious_size else round(_ws_conf * 0.4, 2),
+            "confidence": ws_conf,
             "segregation": {
                 "dry_waste": ["Paper", "Plastic", "Cardboard"],
                 "wet_waste": ["Food waste", "Organic matter"],
-                "quality_score": round(_ws_conf * 100),
+                "quality_score": round(ws_conf * 100),
             },
         },
         "water_conservation": {
@@ -234,59 +257,13 @@ def verify_image(req: VerifyImageRequest):
         "confidence": round(random.uniform(0.75, 0.98), 2),
     })
 
-<<<<<<< HEAD
-    # --- Topic Match Inspection ---
-    topic_words = TOPIC_KEYWORDS.get(mission_type, [])
-    other_topic_words = [w for m, words in TOPIC_KEYWORDS.items() if m != mission_type for w in words]
-    
-    is_off_topic_file = any(word in name_str for word in OFF_TOPIC_KEYWORDS)
-    is_wrong_topic_file = any(word in name_str for word in other_topic_words) and not any(word in name_str for word in topic_words)
-    has_topic_match = any(word in name_str for word in topic_words)
-    is_sample_name = name_str.strip() in [
-        "http://example.com/evidence.jpg",
-        "http://example.com/tree.jpg", "http://example.com/waste.jpg",
-        "http://example.com/water.jpg", "http://example.com/photo.jpg",
-        "http://example.com/border.jpg", "http://example.com/img.jpg"
-    ]
-
-    is_unmatched = is_off_topic_file or is_wrong_topic_file or (not has_topic_match and not is_sample_name)
-    
-    if is_unmatched and not is_sample_name:
-        # Verification fails due to off-topic / mismatched image
-        confidence = round(random.uniform(0.28, 0.42), 2)
-        verified = False
-        detected_objects = ["Unrelated Object / Topic Mismatch"]
-        message = (
-            f"Verification Unsuccessful (Confidence {int(confidence*100)}%). "
-            f"The uploaded file does not match required evidence for '{readable_mission}'. "
-            f"Expected items: {', '.join(base_data['detected_objects'])}."
-        )
-        return VerifyImageResponse(
-            verified=verified,
-            confidence=confidence,
-            detected_objects=detected_objects,
-            message=message,
-            segregation=None,
-            student_explanation=message,
-            teacher_explanation=f"Automated check failed for '{readable_mission}' at {int(confidence*100)}% confidence. Uploaded image content mismatched expected items.",
-            needs_teacher_review=False,
-        )
-
-    # --- Standard Topic Match ---
+    # --- Step 4: Confidence + verification ---
     confidence = base_data["confidence"]
     detected_objects = base_data["detected_objects"]
     verified = confidence > 0.7
     segregation = base_data.get("segregation")
 
-    # Bob explanation layer
-=======
-    confidence = response_data["confidence"]
-    detected_objects = response_data["detected_objects"]
-    verified = confidence > 0.7
-    segregation = response_data.get("segregation")
-
-    # --- Step 4: Bob explanation layer ---
->>>>>>> d91a495 (ai verification is done)
+    # --- Step 5: Bob explanation layer ---
     bob_result = bob_service.explain_verification(
         mission_type=mission_type,
         detected_objects=detected_objects,
