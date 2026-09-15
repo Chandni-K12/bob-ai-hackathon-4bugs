@@ -51,6 +51,49 @@ app.get('/api/schools', (req, res) => {
   ]);
 });
 
+// --- CLASS ANALYTICS ---
+const CLASS_ANALYTICS = {
+  c1: {
+    name: 'Class 8-A',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 68 },
+      { topic: 'Waste Management',   avg_score: 82 },
+      { topic: 'Water Conservation', avg_score: 55 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 28 },
+      { week: 'Week 2', active_students: 31 },
+      { week: 'Week 3', active_students: 27 },
+    ],
+  },
+  c2: {
+    name: 'Class 8-B',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 48 },
+      { topic: 'Waste Management',   avg_score: 75 },
+      { topic: 'Water Conservation', avg_score: 88 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 20 },
+      { week: 'Week 2', active_students: 24 },
+      { week: 'Week 3', active_students: 30 },
+    ],
+  },
+  c3: {
+    name: 'Class 9-A',
+    topic_avg_scores: [
+      { topic: 'Climate Change',     avg_score: 92 },
+      { topic: 'Waste Management',   avg_score: 61 },
+      { topic: 'Water Conservation', avg_score: 74 },
+    ],
+    participation_trend: [
+      { week: 'Week 1', active_students: 35 },
+      { week: 'Week 2', active_students: 36 },
+      { week: 'Week 3', active_students: 38 },
+    ],
+  },
+};
+
 // --- TOPICS ---
 app.get('/api/topics', (req, res) => {
   res.json([
@@ -158,6 +201,48 @@ const getRequestedCount = (q, defaultVal = 3) => {
   }
   return defaultVal;
 };
+
+app.post('/api/ai/personalize-learning', async (req, res) => {
+  // Proxy to Python AI service; fallback to lowest-score deterministic recommendation
+  try {
+    const aiRes = await fetch('http://localhost:8000/personalize-learning', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    if (aiRes.ok) {
+      const data = await aiRes.json();
+      return res.json(data);
+    }
+  } catch (err) {
+    console.log('AI Service personalize-learning proxy fallback:', err.message);
+  }
+
+  // Deterministic fallback: recommend the lowest-scoring topic
+  const MISSION_MAP = {
+    'Water Conservation': 'Water Saver',
+    'Waste Management': 'Plastic-Free Week',
+    'Climate Change': 'Carbon Footprint Tracker',
+    'Biodiversity': 'Plant a Tree',
+    'Renewable Energy': 'Energy Audit',
+  };
+  const scores = (req.body.topic_scores || []).filter(t => typeof t.score === 'number');
+  if (scores.length > 0) {
+    const lowest = scores.reduce((a, b) => a.score < b.score ? a : b);
+    return res.json({
+      recommended_topic: lowest.topic,
+      reason: `Your score in ${lowest.topic} is ${Math.round(lowest.score)}%, which is currently your lowest-scoring topic.`,
+      recommended_mission: MISSION_MAP[lowest.topic] || 'Eco Explorer',
+      learning_style: 'scenario-based',
+    });
+  }
+  res.json({
+    recommended_topic: 'Unable to personalise right now',
+    reason: 'Not enough topic score data was provided.',
+    recommended_mission: 'Eco Explorer',
+    learning_style: 'scenario-based',
+  });
+});
 
 app.post('/api/ai/verify-image', async (req, res) => {
   const { image_url, file_name, mission_type } = req.body;
@@ -418,48 +503,7 @@ app.get('/api/analytics/platform', (req, res) => {
   res.json({ totalSchools: 128, totalStudents: 42850, totalTeachers: 2340, activeCompetitions: 16 });
 });
 
-// Dynamic Class Summaries per class_id
-const CLASS_ANALYTICS = {
-  c1: {
-    name: 'Class 8-A',
-    topic_avg_scores: [
-      { topic: 'Climate Change',     avg_score: 68 },
-      { topic: 'Waste Management',   avg_score: 82 },
-      { topic: 'Water Conservation', avg_score: 55 },
-    ],
-    participation_trend: [
-      { week: 'Week 1', active_students: 28 },
-      { week: 'Week 2', active_students: 31 },
-      { week: 'Week 3', active_students: 27 },
-    ],
-  },
-  c2: {
-    name: 'Class 8-B',
-    topic_avg_scores: [
-      { topic: 'Climate Change',     avg_score: 48 },
-      { topic: 'Waste Management',   avg_score: 75 },
-      { topic: 'Water Conservation', avg_score: 88 },
-    ],
-    participation_trend: [
-      { week: 'Week 1', active_students: 20 },
-      { week: 'Week 2', active_students: 24 },
-      { week: 'Week 3', active_students: 30 },
-    ],
-  },
-  c3: {
-    name: 'Class 9-A',
-    topic_avg_scores: [
-      { topic: 'Climate Change',     avg_score: 92 },
-      { topic: 'Waste Management',   avg_score: 61 },
-      { topic: 'Water Conservation', avg_score: 74 },
-    ],
-    participation_trend: [
-      { week: 'Week 1', active_students: 35 },
-      { week: 'Week 2', active_students: 36 },
-      { week: 'Week 3', active_students: 38 },
-    ],
-  },
-};
+
 
 app.get('/api/analytics/class/:id', (req, res) => {
   const data = CLASS_ANALYTICS[req.params.id] || CLASS_ANALYTICS['c1'];
@@ -493,8 +537,14 @@ try {
 }
 
 // --- START ---
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🌿 GenGreen API running on port ${PORT}`);
-  console.log(`   Routes: /api/auth, /api/users, /api/schools, /api/topics, /api/missions, /api/submissions, /api/leaderboards, /api/competitions, /api/badges, /api/analytics`);
-});
+// When run directly (local dev), start the HTTP server.
+// When require()'d by the Vercel serverless entry point, just export the app.
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`🌿 GenGreen API running on port ${PORT}`);
+    console.log(`   Routes: /api/auth, /api/users, /api/schools, /api/topics, /api/missions, /api/submissions, /api/leaderboards, /api/competitions, /api/badges, /api/analytics`);
+  });
+}
+
+module.exports = app;
