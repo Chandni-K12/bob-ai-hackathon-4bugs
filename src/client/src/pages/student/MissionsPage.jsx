@@ -16,7 +16,7 @@ const missionTypeMap = {
   'm4': 'green_transport',
 };
 
-function VerificationModal({ mission, onClose }) {
+function VerificationModal({ mission, onClose, onVerified }) {
   const [step, setStep] = useState(0); // 0: upload, 1: verifying, 2: result
   const [file, setFile] = useState(null);
   const [aiResult, setAiResult] = useState(null);
@@ -232,6 +232,13 @@ function VerificationModal({ mission, onClose }) {
                 </div>
               )}
               <button onClick={onClose} className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium">
+              <div className="p-3 rounded-lg bg-eco-amber/5 border border-eco-amber/20">
+                <p className="text-sm font-medium text-eco-amber">AI Verified — Awaiting Teacher Approval</p>
+                <p className="text-xs text-muted-foreground mt-1">Your teacher will review and approve this submission.</p>
+              </div>
+              <button
+                onClick={() => { if (aiResult?.verified) onVerified(mission.id, aiResult); else onClose(); }}
+                className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium">
                 Done
               </button>
             </div>
@@ -265,6 +272,19 @@ export default function MissionsPage() {
   const { user } = useAuth();
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
+  const [missions, setMissions] = useState(mockMissions);
+
+  const startMission = (id) => {
+    setMissions(prev => prev.map(m =>
+      m.id === id ? { ...m, status: 'in_progress', progress: Math.max(m.progress, 1) } : m
+    ));
+  };
+
+  const completeMission = (id) => {
+    setMissions(prev => prev.map(m =>
+      m.id === id ? { ...m, status: 'completed', progress: m.total } : m
+    ));
+  };
 
   // Merge teacher-assigned tasks into the missions list
   const [teacherTasks, setTeacherTasks] = useState([]);
@@ -279,7 +299,7 @@ export default function MissionsPage() {
   }, [user]);
 
   // Teacher tasks shown first (with a badge), then regular missions
-  const allMissions = [...teacherTasks, ...mockMissions];
+  const allMissions = [...teacherTasks, ...missions];
   const filtered = allMissions.filter(m => filter === 'all' || m.status === filter);
 
   const statusColors = {
@@ -349,12 +369,20 @@ export default function MissionsPage() {
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-eco-green font-medium">+{mission.points} Eco Points</span>
-              {mission.status !== 'completed' && (
+              {mission.status === 'not_started' && (
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                  onClick={() => startMission(mission.id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white flex items-center gap-1"
+                  style={{ background: mission.color }}>
+                  Start Mission <ChevronRight className="w-3 h-3" />
+                </motion.button>
+              )}
+              {mission.status === 'in_progress' && (
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                   onClick={() => setSubmitMission(mission)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium text-white flex items-center gap-1"
                   style={{ background: mission.color }}>
-                  {mission.status === 'in_progress' ? 'Submit Evidence' : 'Start Mission'} <ChevronRight className="w-3 h-3" />
+                  Submit Evidence <ChevronRight className="w-3 h-3" />
                 </motion.button>
               )}
               {mission.status === 'completed' && (
@@ -366,7 +394,13 @@ export default function MissionsPage() {
       </motion.div>
 
       <AnimatePresence>
-        {submitMission && <VerificationModal mission={submitMission} onClose={() => setSubmitMission(null)} />}
+        {submitMission && (
+          <VerificationModal
+            mission={submitMission}
+            onClose={() => setSubmitMission(null)}
+            onVerified={(id) => { completeMission(id); setSubmitMission(null); }}
+          />
+        )}
       </AnimatePresence>
     </motion.div>
   );
