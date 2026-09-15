@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockSubmissions } from '../../data/mockData';
+import { submissionsAPI } from '../../services/api';
 import { Shield, CheckCircle2, XCircle, Eye, MapPin, Clock, Image, X } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function VerificationPage() {
-  const [submissions, setSubmissions] = useState(mockSubmissions);
+  const [submissions, setSubmissions] = useState([]);
   const [viewSub, setViewSub] = useState(null);
   const [filter, setFilter] = useState('pending');
+
+  useEffect(() => {
+    submissionsAPI.getAll()
+      .then(res => setSubmissions(res.data || []))
+      .catch(() => {});
+  }, []);
 
   const handleApprove = (id) => {
     setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'approved', status: 'approved', pointsAwarded: 100 } : s));
@@ -135,7 +141,7 @@ export default function VerificationPage() {
                   🤖 IBM Bob Technical Note (Teacher Review)
                 </p>
                 <p className="text-xs text-foreground leading-relaxed">
-                  {viewSub.teacherExplanation || `Automated check passed for '${viewSub.missionTitle}' at ${viewSub.aiConfidence}% confidence. Detected items: ${viewSub.detectedItems?.join(', ')}.`}
+                  {viewSub.teacherExplanation}
                 </p>
               </div>
 
