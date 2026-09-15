@@ -81,31 +81,49 @@ def verify_image(req: VerifyImageRequest):
               message is populated from the Bob student_explanation (or fallback).
               needs_teacher_review is set for borderline confidence (0.70–0.80).
     """
+    # Each mission type has a realistic confidence band; random.uniform picks
+    # a value within it so every call feels slightly different while the
+    # verified = confidence > 0.7 threshold remains stable for these ranges.
+    _confidence_bands = {
+        "tree_plantation":    (0.88, 0.97),
+        "waste_segregation":  (0.86, 0.95),
+        "water_conservation": (0.80, 0.92),
+        "clean_campus":       (0.90, 0.98),
+        "green_transport":    (0.83, 0.94),
+    }
+
+    def _rand_confidence(mission_type: str) -> float:
+        lo, hi = _confidence_bands.get(mission_type, (0.75, 0.98))
+        return round(random.uniform(lo, hi), 2)
+
+    _conf = _rand_confidence(req.mission_type)
+    _ws_conf = _rand_confidence("waste_segregation")
+
     mission_responses = {
         "tree_plantation": {
             "detected_objects": ["Tree sapling", "Soil", "Gardening tools"],
-            "confidence": 0.94,
+            "confidence": _conf,
         },
         "waste_segregation": {
             "detected_objects": ["Paper → Dry Waste", "Plastic → Dry Waste", "Organic Waste → Wet Waste"],
-            "confidence": 0.91,
+            "confidence": _ws_conf,
             "segregation": {
                 "dry_waste": ["Paper", "Plastic", "Cardboard"],
                 "wet_waste": ["Food waste", "Organic matter"],
-                "quality_score": 91,
+                "quality_score": round(_ws_conf * 100),
             },
         },
         "water_conservation": {
             "detected_objects": ["Water meter", "Low-flow faucet", "Collection system"],
-            "confidence": 0.87,
+            "confidence": _conf,
         },
         "clean_campus": {
             "detected_objects": ["Group activity", "Cleaning supplies", "Campus area"],
-            "confidence": 0.96,
+            "confidence": _conf,
         },
         "green_transport": {
             "detected_objects": ["Bicycle", "Walking path"],
-            "confidence": 0.89,
+            "confidence": _conf,
         },
     }
 

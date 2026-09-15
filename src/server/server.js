@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -159,7 +160,21 @@ app.post('/api/ai/chat', (req, res) => {
   const count = getRequestedCount(msg, 3);
   let reply = "";
 
-  if (msg.includes('waste') || msg.includes('plastic') || msg.includes('zero') || msg.includes('recycle') || msg.includes('tip')) {
+  if (msg.includes('topic') || msg.includes('recommend') || msg.includes('study') || msg.includes('next') || msg.includes('suggest')) {
+    reply = "Based on your performance analytics, here are your **AI Personalized Topic Recommendations**:\n\n" +
+      "1. 🎯 **Water Conservation** (Current Score: 55%) — *Top Recommendation*\n" +
+      "   Recommended Mission: **Water Saver** (+75 Eco Points)\n\n" +
+      "2. 📘 **Climate Change** (Current Score: 68%) — *Intermediate Priority*\n" +
+      "   Recommended Mission: **Carbon Footprint Tracker** (+100 Eco Points)\n\n" +
+      "3. 🏆 **Waste Management** (Current Score: 82%) — *Strong Area*\n" +
+      "   Recommended Mission: **Plastic-Free Week** (+100 Eco Points)\n\n" +
+      "💡 *Tip: Head to your Learn page to complete the Water Saver lesson!*";
+  } else if (msg.includes('mission') || msg.includes('task') || msg.includes('challenge')) {
+    reply = "Here are your top recommended **Green Missions** to complete today:\n\n" +
+      "1. 💧 **Water Saver**: Inspect faucets & log water savings (+75 Eco Points)\n" +
+      "2. ♻️ **Plastic-Free Week**: Avoid single-use plastics for 7 days (+100 Eco Points)\n" +
+      "3. 🌳 **Plant a Tree**: Plant a sapling & submit photo for AI verification (+200 Eco Points)";
+  } else if (msg.includes('waste') || msg.includes('plastic') || msg.includes('zero') || msg.includes('recycle') || msg.includes('tip')) {
     const list = ZERO_WASTE_TIPS_SERVER.slice(0, count);
     reply = `Here are **${count} practical zero-waste tips** for daily life:\n\n` +
       list.map((t, idx) => `${idx + 1}. **${t.title}**: ${t.desc}`).join('\n') +
@@ -179,7 +194,7 @@ app.post('/api/ai/chat', (req, res) => {
   } else if (msg.includes('tree') || msg.includes('plant') || msg.includes('biodiversity')) {
     reply = "Trees are Earth's natural lungs!\n\n🌳 A single mature tree absorbs 22kg of CO2 every year and provides habitat for local wildlife. Plant a native sapling today!";
   } else {
-    reply = "Every small eco-friendly habit counts! Practice the 3 R's (Reduce, Reuse, Recycle), save energy, and inspire your classmates on GenGreen!";
+    reply = "Every small eco-friendly habit counts! Try asking for **topic recommendations**, **zero-waste tips**, or **water conservation advice**!";
   }
 
   res.json({ reply, timestamp: new Date().toISOString() });
