@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { formatNumber } from '../../lib/utils';
 import { Link } from 'react-router-dom';
-import { tasksAPI, dashboardAPI, topicsAPI, missionsAPI } from '../../services/api';
+import { tasksAPI, dashboardAPI, topicsAPI, missionsAPI, leaderboardsAPI } from '../../services/api';
 import { Target, BookOpen, Award, TrendingUp, Star, ChevronRight, ClipboardList } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -98,14 +98,45 @@ export default function StudentDashboard() {
 
     let active = true;
 
-    dashboardAPI.getStudent(user.id)
-      .then((res) => {
+    const classId = user.classId || user.class_id || user.className || '8-A';
+    const schoolId = user.schoolId || user.school_id || user.schoolName || 's1';
+
+    const loadDashboard = async () => {
+      try {
+        const [studentRes, classBoardRes, schoolBoardRes] = await Promise.all([
+          dashboardAPI.getStudent(user.id),
+          leaderboardsAPI.getClass(classId),
+          leaderboardsAPI.getSchool(schoolId),
+        ]);
+
         if (!active) return;
-        setDashboard({ ...user, ...(res.data || {}) });
-      })
-      .catch(() => {
-        if (active) setDashboard({ ...user, className: user.className || '8-A', schoolName: user.schoolName || 'Green Valley School' });
-      });
+
+        const studentData = studentRes.data || {};
+        const classRows = classBoardRes.data || [];
+        const schoolRows = schoolBoardRes.data || [];
+
+        const classRank = classRows.findIndex((entry) => entry.name === studentData.name) + 1 || undefined;
+        const schoolRank = schoolRows.findIndex((entry) => entry.name === studentData.name) + 1 || undefined;
+
+        setDashboard({
+          ...user,
+          ...studentData,
+          classRank: classRank || Number(user.classRank ?? 0) || undefined,
+          schoolRank: schoolRank || Number(user.schoolRank ?? 0) || undefined,
+        });
+      } catch {
+        if (!active) return;
+        setDashboard({
+          ...user,
+          className: user.className || '8-A',
+          schoolName: user.schoolName || 'Green Valley School',
+          classRank: Number(user.classRank ?? 7),
+          schoolRank: Number(user.schoolRank ?? 24),
+        });
+      }
+    };
+
+    loadDashboard();
 
     topicsAPI.getAll()
       .then((res) => {
@@ -127,7 +158,6 @@ export default function StudentDashboard() {
         if (active) setActiveMissions(fallbackMissions);
       });
 
-    const classId = user.classId || user.class_id || user.className || '8-A';
     tasksAPI.getByClass(classId)
       .then((res) => {
         if (!active) return;
@@ -141,7 +171,7 @@ export default function StudentDashboard() {
     return () => {
       active = false;
     };
-  }, [user?.id, user?.classId, user?.class_id, user?.className, user?.schoolName]);
+  }, [user?.id, user?.classId, user?.class_id, user?.className, user?.schoolId, user?.school_id, user?.schoolName]);
 
   const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7'];
   const streakWeeks = weeks.map((_, index) => index < Math.min(Number(dashboard?.streak ?? user?.streak ?? 0), weeks.length));
