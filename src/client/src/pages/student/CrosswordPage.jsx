@@ -10,9 +10,9 @@ const defaultCrosswordPuzzles = [
     level: 'Beginner',
     size: 9,
     words: [
-      { word: 'BIN', clue: '1A. A container used for collecting waste', direction: 'across', row: 0, col: 0, num: 1 },
-      { word: 'REUSE', clue: '2A. Use an item again', direction: 'across', row: 1, col: 0, num: 2 },
-      { word: 'PAPER', clue: '3A. Material commonly made from trees', direction: 'across', row: 2, col: 0, num: 3 },
+      { word: 'BIN', clue: '1A. A container used for collecting waste', hint: 'These items are placed in homes, schools, and public spaces to collect waste before disposal or recycling. Using the right one for each waste type is key to waste management.', direction: 'across', row: 0, col: 0, num: 1 },
+      { word: 'REUSE', clue: '2A. Use an item again', hint: 'This eco-friendly action involves finding new ways to utilize materials multiple times instead of discarding them after a single use, directly reducing landfill accumulation.', direction: 'across', row: 1, col: 0, num: 2 },
+      { word: 'PAPER', clue: '3A. Material commonly made from trees', hint: 'This widely used recyclable product is manufactured from tree pulp. Segregating and recycling it helps save thousands of trees and conserves forest ecosystems.', direction: 'across', row: 2, col: 0, num: 3 },
     ],
     bonusPoints: 50,
   },
@@ -22,9 +22,9 @@ const defaultCrosswordPuzzles = [
     level: 'Beginner',
     size: 9,
     words: [
-      { word: 'RAIN', clue: '1A. Water falling from clouds', direction: 'across', row: 0, col: 0, num: 1 },
-      { word: 'SAVE', clue: '2A. Keep from wasting', direction: 'across', row: 1, col: 0, num: 2 },
-      { word: 'FLOW', clue: '3A. Movement of water', direction: 'across', row: 2, col: 0, num: 3 },
+      { word: 'RAIN', clue: '1A. Water falling from clouds', hint: 'This natural form of atmospheric precipitation supplies essential freshwater that fills reservoirs, lakes, and underground water tables naturally.', direction: 'across', row: 0, col: 0, num: 1 },
+      { word: 'SAVE', clue: '2A. Keep from wasting', hint: 'This essential habit requires turning off running taps, fixing leaking pipes, and avoiding unnecessary usage to protect freshwater supplies for everyone.', direction: 'across', row: 1, col: 0, num: 2 },
+      { word: 'FLOW', clue: '3A. Movement of water', hint: 'This term describes the continuous, natural movement of liquids through rivers, streams, and pipelines that keeps ecosystems supplied with water.', direction: 'across', row: 2, col: 0, num: 3 },
     ],
     bonusPoints: 50,
   },
@@ -166,7 +166,8 @@ export default function CrosswordPage() {
       const isBlank = typed.split('').every(ch => ch === '_');
       const isCorrect = typed === w.word;
       const description = stripPrefix(w.clue);
-      return { num: w.num, direction: w.direction, word: w.word, description, hint: w.hint, typed, isCorrect, isBlank };
+      const hint = w.hint || `Starts with '${w.word[0]}' and has ${w.word.length} letters (${description}).`;
+      return { num: w.num, direction: w.direction, word: w.word, description, hint, typed, isCorrect, isBlank };
     });
 
     setWordFeedback(feedback);
