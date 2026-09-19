@@ -10,9 +10,9 @@ const defaultCrosswordPuzzles = [
     level: 'Beginner',
     size: 9,
     words: [
-      { word: 'BIN', clue: '1A. A container used for collecting waste', hint: 'Starts with B (3 letters). Common waste container kept in rooms or streets.', direction: 'across', row: 0, col: 0, num: 1 },
-      { word: 'REUSE', clue: '2A. Use an item again', hint: 'Starts with R (5 letters). Using an item multiple times instead of throwing it away.', direction: 'across', row: 1, col: 0, num: 2 },
-      { word: 'PAPER', clue: '3A. Material commonly made from trees', hint: 'Starts with P (5 letters). Recyclable material made from wood pulp used for writing.', direction: 'across', row: 2, col: 0, num: 3 },
+      { word: 'BIN', clue: '1A. A container used for collecting waste', direction: 'across', row: 0, col: 0, num: 1 },
+      { word: 'REUSE', clue: '2A. Use an item again', direction: 'across', row: 1, col: 0, num: 2 },
+      { word: 'PAPER', clue: '3A. Material commonly made from trees', direction: 'across', row: 2, col: 0, num: 3 },
     ],
     bonusPoints: 50,
   },
@@ -22,9 +22,9 @@ const defaultCrosswordPuzzles = [
     level: 'Beginner',
     size: 9,
     words: [
-      { word: 'RAIN', clue: '1A. Water falling from clouds', hint: 'Starts with R (4 letters). Natural freshwater precipitation from clouds.', direction: 'across', row: 0, col: 0, num: 1 },
-      { word: 'SAVE', clue: '2A. Keep from wasting', hint: 'Starts with S (4 letters). Action to conserve or protect natural resources.', direction: 'across', row: 1, col: 0, num: 2 },
-      { word: 'FLOW', clue: '3A. Movement of water', hint: 'Starts with F (4 letters). Smooth continuous motion of liquids like water in streams.', direction: 'across', row: 2, col: 0, num: 3 },
+      { word: 'RAIN', clue: '1A. Water falling from clouds', direction: 'across', row: 0, col: 0, num: 1 },
+      { word: 'SAVE', clue: '2A. Keep from wasting', direction: 'across', row: 1, col: 0, num: 2 },
+      { word: 'FLOW', clue: '3A. Movement of water', direction: 'across', row: 2, col: 0, num: 3 },
     ],
     bonusPoints: 50,
   },
@@ -166,8 +166,7 @@ export default function CrosswordPage() {
       const isBlank = typed.split('').every(ch => ch === '_');
       const isCorrect = typed === w.word;
       const description = stripPrefix(w.clue);
-      const hint = w.hint || `Starts with '${w.word[0]}' and has ${w.word.length} letters (${description}).`;
-      return { num: w.num, direction: w.direction, word: w.word, description, hint, typed, isCorrect, isBlank };
+      return { num: w.num, direction: w.direction, word: w.word, description, hint: w.hint, typed, isCorrect, isBlank };
     });
 
     setWordFeedback(feedback);
