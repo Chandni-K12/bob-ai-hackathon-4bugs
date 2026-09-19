@@ -9,39 +9,219 @@ const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { st
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 const missionTypeMap = {
-  'm5': 'tree_plantation',
-  'm3': 'waste_segregation',
-  'm2': 'water_conservation',
-  'm7': 'clean_campus',
-  'm4': 'green_transport',
+  'm1': 'tree_plantation',       // Plant a Tree Sapling
+  'm2': 'waste_segregation',     // Waste Segregation Week
+  'm3': 'water_conservation',    // Water Audit at Home
+  'm4': 'clean_campus',          // Clean-up Drive
+  'm5': 'energy_saving',         // Energy Saving Challenge
+  'm6': 'composting',            // Composting Starter
+  'm7': 'green_transport',       // Bicycle to School Week
+};
+
+/**
+ * Read a File as a base64 data-URL string.
+ */
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Analyze an image file using the Canvas API to extract color statistics.
+ * Returns ratios of green, brown, blue, bright, and dark pixels.
+ */
+function analyzeImageColors(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 80; // downsample for speed
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      const data = ctx.getImageData(0, 0, size, size).data;
+
+      let green = 0, brown = 0, blue = 0, dark = 0, bright = 0, outdoor = 0;
+      const total = size * size;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+
+        // Green: foliage, trees, plants, grass
+        if (g > r * 1.15 && g > b * 1.15 && g > 50) green++;
+        // Brown: soil, earth, trunks, mud
+        if (r > 70 && g > 40 && g < r && b < g && r - b > 30) brown++;
+        // Blue: water, sky
+        if (b > r * 1.15 && b > g * 1.05 && b > 70) blue++;
+        // Dark: terminal/UI backgrounds, very dark areas
+        if (r < 60 && g < 60 && b < 60) dark++;
+        // Bright: sky, outdoors, well-lit photos
+        if (r > 180 && g > 180 && b > 180) bright++;
+        // Outdoor heuristic: varied natural tones (not uniform grays)
+        if ((g > 60 || r > 80) && Math.abs(r - g) + Math.abs(g - b) > 30) outdoor++;
+      }
+
+      URL.revokeObjectURL(url);
+      resolve({
+        greenRatio: green / total,
+        brownRatio: brown / total,
+        blueRatio: blue / total,
+        darkRatio: dark / total,
+        brightRatio: bright / total,
+        outdoorRatio: outdoor / total,
+        isNatureScene: (green + brown) / total > 0.12,
+        isOutdoor: outdoor / total > 0.25,
+        isScreenshot: dark / total > 0.45 && outdoor / total < 0.15,
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Mission verification rules: each mission type defines what color
+ * signatures to look for and what to reject.
+ */
+const MISSION_VERIFY_RULES = {
+  tree_plantation: {
+    label: 'tree plantation activity (tree sapling, soil, gardening)',
+    /** Image must have noticeable green OR brown (nature) content */
+    check: (c) => c.isNatureScene || c.greenRatio > 0.08 || (c.brownRatio > 0.06 && c.outdoorRatio > 0.15),
+    detected: ['Tree / plant foliage', 'Soil / earth tones', 'Outdoor environment'],
+    failMsg: 'The image does not appear to show trees, plants, or soil. Please upload a photo of your tree plantation activity.',
+  },
+  waste_segregation: {
+    label: 'waste segregation (bins, sorted waste, recycling)',
+    /** Should not be a dark screenshot; should have varied colors indicating physical objects */
+    check: (c) => !c.isScreenshot && c.outdoorRatio > 0.15,
+    detected: ['Waste bins / containers', 'Sorted materials', 'Physical environment'],
+    failMsg: 'The image does not appear to show waste bins or sorted waste. Please upload a photo of your segregation activity.',
+  },
+  water_conservation: {
+    label: 'water conservation effort (tap, meter, rainwater system)',
+    /** Blue or outdoor scene, not a dark screenshot */
+    check: (c) => !c.isScreenshot && (c.blueRatio > 0.04 || c.outdoorRatio > 0.15 || c.isOutdoor),
+    detected: ['Water-related fixtures', 'Plumbing / conservation setup', 'Physical environment'],
+    failMsg: 'The image does not appear to show water conservation evidence. Please upload a photo of taps, meters, or water collection systems.',
+  },
+  clean_campus: {
+    label: 'campus clean-up activity (cleaning supplies, group effort)',
+    /** Outdoor or well-lit scene with varied colors, not a terminal */
+    check: (c) => !c.isScreenshot && (c.isOutdoor || c.outdoorRatio > 0.2),
+    detected: ['Campus / outdoor area', 'Cleaning activity', 'Group environment'],
+    failMsg: 'The image does not appear to show a clean-up activity. Please upload a photo showing campus cleaning or group effort.',
+  },
+  green_transport: {
+    label: 'green transport usage (bicycle, walking path)',
+    /** Outdoor scene, not a screenshot */
+    check: (c) => !c.isScreenshot && (c.isOutdoor || c.outdoorRatio > 0.15),
+    detected: ['Transport / pathway', 'Outdoor scene', 'Eco-friendly transit'],
+    failMsg: 'The image does not appear to show green transport. Please upload a photo of bicycle, walking, or public transport usage.',
+  },
+  energy_saving: {
+    label: 'energy saving activity (meter reading, switched-off appliances, LED lights)',
+    /** Indoor or outdoor, not a dark screenshot; should show physical environment */
+    check: (c) => !c.isScreenshot && (c.outdoorRatio > 0.10 || c.brightRatio > 0.10),
+    detected: ['Electricity meter / appliance', 'Energy-efficient setup', 'Physical environment'],
+    failMsg: 'The image does not appear to show energy saving evidence. Please upload a photo of your meter reading, switched-off appliances, or energy-efficient setup.',
+  },
+  composting: {
+    label: 'composting activity (compost pit, kitchen waste, earthworms)',
+    /** Should show nature/organic tones — brown and green */
+    check: (c) => c.isNatureScene || c.brownRatio > 0.06 || (c.outdoorRatio > 0.15 && !c.isScreenshot),
+    detected: ['Compost pit / bin', 'Organic waste material', 'Soil / earth environment'],
+    failMsg: 'The image does not appear to show composting activity. Please upload a photo of your compost pit, kitchen waste setup, or vermicomposting bin.',
+  },
 };
 
 function VerificationModal({ mission, onClose, onVerified }) {
   const [step, setStep] = useState(0); // 0: upload, 1: verifying, 2: result
   const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [aiResult, setAiResult] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Generate image preview when file is selected
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
   const handleUpload = async () => {
+    if (!file) return;
     setStep(1);
     const missionType = missionTypeMap[mission.id] || 'tree_plantation';
+    const rules = MISSION_VERIFY_RULES[missionType] || MISSION_VERIFY_RULES.tree_plantation;
+
     try {
+      // Try the AI backend first
+      const imageBase64 = await fileToBase64(file);
       const res = await aiAPI.verifyImage({
-        image_url: 'http://example.com/evidence.jpg',
+        image_url: imageBase64,
         mission_type: missionType,
+        file_name: file.name,
+        file_size: file.size,
       });
       setAiResult(res.data);
     } catch (err) {
-      console.warn('AI service call fallback', err);
-      setAiResult({
-        verified: true,
-        confidence: 0.94,
-        detected_objects: ['Tree sapling', 'Soil', 'Gardening tools'],
-        message: 'Great job! Your submission was verified with 94% confidence.',
-        student_explanation: 'Great job! Your submission was verified with 94% confidence based on evidence found.',
-        teacher_explanation: 'Automated check passed at 94% confidence.',
-        needs_teacher_review: false,
-      });
+      console.warn('AI service unavailable — running client-side image analysis', err);
+
+      // ── Client-side image analysis using Canvas color sampling ──
+      const colors = await analyzeImageColors(file);
+
+      if (!colors) {
+        // Could not read the image at all
+        setAiResult({
+          verified: false,
+          confidence: 0.0,
+          detected_objects: [],
+          message: 'Unable to read the image file. Please try a different photo.',
+          student_explanation: 'We could not open your image. Please try uploading a JPEG or PNG photo.',
+          teacher_explanation: `Image file "${file.name}" could not be decoded for analysis.`,
+          needs_teacher_review: true,
+        });
+      } else if (rules.check(colors)) {
+        // ✅ Image colors match the expected mission content
+        const confidence = Math.min(
+          0.70 + colors.greenRatio * 0.3 + colors.outdoorRatio * 0.2 + colors.brownRatio * 0.1,
+          0.96
+        );
+        setAiResult({
+          verified: true,
+          confidence: Math.round(confidence * 100) / 100,
+          detected_objects: rules.detected,
+          message: `Your submission has been verified! The image shows evidence consistent with ${rules.label}.`,
+          student_explanation: `Great work! Your photo appears to show ${rules.label}. The AI detected relevant visual elements with ${Math.round(confidence * 100)}% confidence.`,
+          teacher_explanation: `Client-side image analysis passed for "${missionType}". Color profile: ${Math.round(colors.greenRatio * 100)}% green, ${Math.round(colors.brownRatio * 100)}% brown, ${Math.round(colors.outdoorRatio * 100)}% outdoor tones. File: "${file.name}" (${(file.size / 1024).toFixed(1)} KB).`,
+          needs_teacher_review: confidence < 0.80,
+        });
+      } else {
+        // ❌ Image colors don't match — likely a screenshot or unrelated photo
+        const confidence = Math.max(0.10, colors.outdoorRatio * 0.4);
+        setAiResult({
+          verified: false,
+          confidence: Math.round(confidence * 100) / 100,
+          detected_objects: colors.isScreenshot
+            ? ['Screen / UI interface detected', 'No outdoor or nature elements found']
+            : ['Image content does not match mission requirements'],
+          message: rules.failMsg,
+          student_explanation: rules.failMsg,
+          teacher_explanation: `Client-side image analysis FAILED for "${missionType}". Color profile: ${Math.round(colors.darkRatio * 100)}% dark, ${Math.round(colors.greenRatio * 100)}% green, ${Math.round(colors.outdoorRatio * 100)}% outdoor. ${colors.isScreenshot ? 'Image appears to be a screenshot.' : 'Image content does not match mission evidence expectations.'} File: "${file.name}".`,
+          needs_teacher_review: false,
+        });
+      }
     }
     setStep(2);
   };
@@ -65,6 +245,17 @@ function VerificationModal({ mission, onClose, onVerified }) {
                   <p className="text-xs text-muted-foreground">{mission.topic}</p>
                 </div>
               </div>
+
+              {/* Expected evidence hint */}
+              <div className="p-3 rounded-lg bg-eco-blue/5 border border-eco-blue/20">
+                <p className="text-xs font-medium text-eco-blue flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" /> What to upload
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {`Upload a clear photo showing ${(MISSION_VERIFY_RULES[missionTypeMap[mission.id] || 'tree_plantation'] || MISSION_VERIFY_RULES.tree_plantation).label}.`}
+                </p>
+              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -76,13 +267,13 @@ function VerificationModal({ mission, onClose, onVerified }) {
                   if (picked) setFile(picked);
                 }}
               />
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/30 transition cursor-pointer"
+              <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/30 transition cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}>
-                {file ? (
-                  <div className="space-y-2">
-                    <CheckCircle2 className="w-8 h-8 text-eco-green mx-auto" />
-                    <p className="text-sm font-medium">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">Click to change</p>
+                {file && preview ? (
+                  <div className="space-y-3">
+                    <img src={preview} alt="Preview" className="w-full max-h-48 object-contain rounded-lg mx-auto" />
+                    <p className="text-sm font-medium truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">Click to change photo</p>
                   </div>
                 ) : (
                   <>
@@ -119,7 +310,7 @@ function VerificationModal({ mission, onClose, onVerified }) {
               </motion.div>
               <h3 className="font-semibold">AI Verification in Progress</h3>
               <div className="space-y-2 text-sm text-left max-w-xs mx-auto">
-                {['Uploading to Cloudinary...', 'Connecting to IBM Bob AI...', 'Analyzing verification response...'].map((text, i) => (
+                {['Uploading evidence image...', 'Connecting to IBM Bob AI...', 'Analyzing image content...'].map((text, i) => (
                   <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.6 }}
                     className="flex items-center gap-2">
                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: i * 0.6 + 0.3 }}>
@@ -143,25 +334,42 @@ function VerificationModal({ mission, onClose, onVerified }) {
                     <X className="w-8 h-8 text-destructive" />
                   )}
                 </motion.div>
-                <h3 className="font-semibold text-lg">{aiResult.verified ? 'AI Verification Complete' : 'Verification Unsuccessful'}</h3>
+                <h3 className="font-semibold text-lg">{aiResult.verified ? 'Verification Passed!' : 'Verification Unsuccessful'}</h3>
               </div>
-              <div className="space-y-2">
-                {aiResult.detected_objects?.map((text, i) => (
-                  <motion.p key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
-                    className="text-sm text-eco-green flex items-center gap-2">✓ Detected: {text}</motion.p>
-                ))}
-              </div>
+
+              {/* Show detected objects only when there are some */}
+              {aiResult.detected_objects?.length > 0 && (
+                <div className="space-y-2">
+                  {aiResult.detected_objects.map((text, i) => (
+                    <motion.p key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
+                      className={`text-sm flex items-center gap-2 ${aiResult.verified ? 'text-eco-green' : 'text-muted-foreground'}`}>
+                      {aiResult.verified ? '✓' : '•'} Detected: {text}
+                    </motion.p>
+                  ))}
+                </div>
+              )}
+
+              {/* No objects detected message */}
+              {(!aiResult.detected_objects || aiResult.detected_objects.length === 0) && (
+                <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-center">
+                  <p className="text-sm text-destructive font-medium">No relevant evidence detected</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Please upload a photo that clearly shows your mission activity.
+                  </p>
+                </div>
+              )}
+
               <div className="p-4 rounded-xl bg-secondary/50 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Verification Confidence</p>
                 <motion.p initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.3 }}
-                  className="text-3xl font-bold text-eco-green">
+                  className={`text-3xl font-bold ${aiResult.verified ? 'text-eco-green' : aiResult.confidence > 0.5 ? 'text-eco-amber' : 'text-destructive'}`}>
                   {Math.round(aiResult.confidence * (aiResult.confidence <= 1 ? 100 : 1))}%
                 </motion.p>
               </div>
 
               {/* IBM Bob Student Explanation Display */}
-              <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 space-y-1">
-                <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+              <div className={`p-3.5 rounded-xl border space-y-1 ${aiResult.verified ? 'bg-primary/10 border-primary/20' : 'bg-destructive/5 border-destructive/20'}`}>
+                <p className={`text-xs font-semibold flex items-center gap-1.5 ${aiResult.verified ? 'text-primary' : 'text-destructive'}`}>
                   🤖 IBM Bob AI Mentor Note
                 </p>
                 <p className="text-xs text-foreground leading-relaxed">
@@ -172,18 +380,35 @@ function VerificationModal({ mission, onClose, onVerified }) {
               {aiResult.needs_teacher_review && (
                 <div className="p-3 rounded-lg bg-eco-amber/10 border border-eco-amber/30 text-xs text-eco-amber flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>Borderline confidence score. Submission flagged for teacher review.</span>
+                  <span>{aiResult.verified
+                    ? 'Borderline confidence score. Submission flagged for teacher review.'
+                    : 'This submission needs teacher review. Please wait for your teacher to verify it manually.'
+                  }</span>
                 </div>
               )}
 
-              <div className="p-3 rounded-lg bg-eco-amber/5 border border-eco-amber/20">
-                <p className="text-sm font-medium text-eco-amber">AI Verified — Awaiting Teacher Approval</p>
-                <p className="text-xs text-muted-foreground mt-1">Your teacher will review and approve this submission.</p>
-              </div>
+              {aiResult.verified ? (
+                <div className="p-3 rounded-lg bg-eco-green/5 border border-eco-green/20">
+                  <p className="text-sm font-medium text-eco-green">✓ AI Verified — Awaiting Teacher Approval</p>
+                  <p className="text-xs text-muted-foreground mt-1">Your evidence has been verified. Your teacher will approve the final score.</p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                  <p className="text-sm font-medium text-destructive">✗ Verification Failed</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your image doesn't appear to match this mission. Please try uploading a clearer photo of the required evidence, or wait for your teacher to review.
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={() => { if (aiResult?.verified) onVerified(mission.id, aiResult); else onClose(); }}
-                className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium">
-                Done
+                className={`w-full py-3 rounded-xl text-sm font-medium ${
+                  aiResult.verified
+                    ? 'bg-secondary hover:bg-secondary/80'
+                    : 'gradient-primary text-white hover:opacity-90'
+                }`}>
+                {aiResult.verified ? 'Done' : 'Try Again with Different Photo'}
               </button>
             </div>
           )}

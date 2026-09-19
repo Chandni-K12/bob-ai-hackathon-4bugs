@@ -121,14 +121,18 @@ export const tasksAPI = {
   create: (data) => api.post('/tasks', data),
 };
 
-// AI Service
-const aiApi = axios.create({ baseURL: AI_BASE });
-
+// AI Service — all calls go through the Express server (/api/ai/...)
+// so they work in both local dev (proxied by Vite) and on Vercel (rewritten by vercel.json).
 export const aiAPI = {
-  verifyImage: (data) => aiApi.post('/verify-image', data),
-  personalizeLearning: (data) => aiApi.post('/personalize-learning', data),
-  getClassInsights: (classId) => aiApi.get(`/class-insights/${classId}`),
+  verifyImage: (data) => api.post('/ai/verify-image', data),
+  personalizeLearning: (data) => api.post('/ai/personalize-learning', data),
+  getClassInsights: (classId) => api.get(`/ai/class-insights/${classId}`),
   chat: (data) => api.post('/ai/chat', data),
+};
+
+// Dashboard
+export const dashboardAPI = {
+  getStudent: (studentId) => api.get(`/dashboard/student/${studentId}`),
 };
 
 export default api;

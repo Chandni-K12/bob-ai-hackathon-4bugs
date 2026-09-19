@@ -222,7 +222,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Gamified Environmental Education Platform • SIH 2026
+          Gamified Environmental Education Platform
         </p>
       </motion.div>
     </div>

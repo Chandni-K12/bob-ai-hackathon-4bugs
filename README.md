@@ -59,17 +59,41 @@
 ## 📁 Repository Structure
 
 ```
-├── src/                  # All source code
-├── docs/                 # Written documentation
-│   ├── problem-statement.md
-│   ├── solution-overview.md
-│   ├── architecture.md
-│   └── setup-guide.md
-├── demo/                 # Demo artifacts
-│   ├── screenshots/      # App screenshots
-│   └── demo-video-link.txt  # Link to demo video
-├── presentation/         # Slide deck
-└── submission.yaml       # Structured submission metadata
+bob-ai-hackathon-4bugs/
+├── src/
+│   ├── client/                  # React + Vite frontend application
+│   │   ├── src/
+│   │   │   ├── pages/           # Role-based dashboards & interactive learning pages
+│   │   │   │   ├── student/     # Dashboard, Missions, Quizzes, Crossword, AI Mentor
+│   │   │   │   ├── teacher/     # Class overview, Student progress, Bob AI Insights
+│   │   │   │   └── organizer/   # School-wide metrics, campaign management
+│   │   │   ├── services/        # Axios API clients (Express backend + AI service)
+│   │   │   ├── context/         # Auth and global state management
+│   │   │   ├── data/            # Curriculum datasets, quizzes, crosswords, missions
+│   │   │   └── layouts/         # Responsive layout wrappers and navigation
+│   │   ├── package.json
+│   │   └── vite.config.js
+│   ├── server/                  # Node.js + Express backend REST API
+│   │   ├── server.js            # Auth, student progress, tasks, leaderboards
+│   │   └── package.json
+│   └── ai-service/              # FastAPI Python service powered by IBM Bob
+│       ├── main.py              # REST endpoints for image verification & recommendations
+│       ├── bob_service.py       # IBM Bob integration layer & prompt reasoning engine
+│       ├── services/            # Supporting AI services & fallback logic
+│       └── requirements.txt
+├── docs/                        # Comprehensive documentation
+│   ├── problem-statement.md     # Detailed background & problem definition
+│   ├── solution-overview.md     # Solution narrative & feature breakdown
+│   ├── architecture.md          # Component architecture, data flow & security
+│   └── setup-guide.md           # Step-by-step local setup instructions
+├── demo/                        # Demonstration materials
+│   ├── screenshots/             # Application UI walkthrough screenshots
+│   ├── demo-video-link.txt      # Video walkthrough link
+│   └── live-demo-url.txt        # Deployment URL
+├── presentation/                # Pitch deck and presentation slides
+├── submission.yaml              # Hackathon evaluation metadata
+└── README.md                    # Project overview & guide
+
 ```
 
 ---
@@ -118,6 +142,16 @@ cd client && npm run dev
 
 ## 🏅 What We're Most Proud Of
 
-[Tell the judges what part of your submission is strongest and worth paying close attention to.]
+1. **Genuinely Load-Bearing IBM Bob AI Integration**:
+   Rather than treating AI as a generic chatbot gimmick, IBM Bob acts as an intelligent reasoning engine across three core pillars:
+   - **Personalized Eco Mentor**: Recommends the student's next mission or quiz with grounded, data-backed rationale tailored to their past progress.
+   - **Evidence Verification & Explainability**: Pairs deterministic, auditable image heuristics with IBM Bob's natural language feedback for students and teachers, with automatic flagging (`needs_teacher_review`) for borderline cases.
+   - **Teacher Class Insights**: Transforms raw student metrics into a concise, prioritized action list for educators to target learning gaps effectively.
 
+2. **Closing the "Knowing vs. Doing" Gap (NEP 2020 Aligned)**:
+   We built a complete experiential loop (**Learn → Play → Real-world Mission → AI Verification → Earn Points → Compete**) that takes students out of textbooks into active community sustainability.
+
+3. **Robust Multi-Role Experience**:
+   A unified, beautifully designed application serving students with gamified missions & interactive puzzles, teachers with class analytics & task management, and school organizers with campus-wide sustainability metrics.
+   
 ---
