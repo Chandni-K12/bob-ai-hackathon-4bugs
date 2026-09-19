@@ -1,11 +1,30 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockClassLeaderboard, mockSchoolLeaderboard, mockCompetitions, mockGreenScore } from '../../data/mockData';
 import { useAuth } from '../../context/AuthContext';
+import { competitionsAPI, leaderboardsAPI } from '../../services/api';
 import { Trophy, Medal, TrendingUp, TrendingDown, Minus, Crown, Star, Users } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
+
+const fallbackClass = [
+  { rank: 1, name: 'Aarav Patel', points: 2850, change: 0, avatar: '🌳' },
+  { rank: 2, name: 'Meghna Rao', points: 2680, change: 1, avatar: '🌸' },
+  { rank: 3, name: 'Priya Iyer', points: 2210, change: -1, avatar: '💧' },
+  { rank: 4, name: 'Rohan Gupta', points: 1920, change: 0, avatar: '🌍' },
+];
+
+const fallbackSchool = [
+  { rank: 1, name: 'Green Valley School', points: 6120, students: 480, avatar: '🏫' },
+  { rank: 2, name: 'Sunrise Academy', points: 5780, students: 620, avatar: '🌱' },
+  { rank: 3, name: 'ABC Public School', points: 5010, students: 390, avatar: '🏫' },
+];
+
+const fallbackCompetitions = [
+  { id: 'comp1', name: 'Inter-School Green Challenge 2026', schools: 84, students: 12400, status: 'upcoming', missions: 15, description: 'Compete with schools across the state for the greenest campus award' },
+  { id: 'comp2', name: 'National Green Campus Challenge 2026', schools: 128, students: 42850, status: 'upcoming', missions: 20, description: 'India\'s largest inter-school environmental competition' },
+  { id: 'comp3', name: 'Clean City Initiative', schools: 45, students: 8900, status: 'active', missions: 10, description: 'Community clean-up challenge across participating schools' },
+];
 
 function RankBadge({ rank }) {
   if (rank === 1) return <Crown className="w-5 h-5 text-yellow-400" />;
@@ -33,7 +52,7 @@ function LeaderboardEntry({ entry, index, isCurrentUser }) {
         {entry.city && <p className="text-xs text-muted-foreground">{entry.city}</p>}
       </div>
       <div className="text-right">
-        <p className="text-sm font-bold">{entry.points?.toLocaleString()}</p>
+        <p className="text-sm font-bold">{Number(entry.points || 0).toLocaleString()}</p>
         {entry.change !== undefined && (
           <div className={`flex items-center justify-end gap-0.5 text-xs ${
             entry.change > 0 ? 'text-eco-green' : entry.change < 0 ? 'text-destructive' : 'text-muted-foreground'
@@ -52,15 +71,60 @@ export default function LeaderboardPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState('class');
   const [liveUpdate, setLiveUpdate] = useState(null);
+  const [classBoard, setClassBoard] = useState(fallbackClass);
+  const [schoolBoard, setSchoolBoard] = useState(fallbackSchool);
+  const [competitions, setCompetitions] = useState(fallbackCompetitions);
 
-  // Simulate live leaderboard update
   useEffect(() => {
     const timer = setTimeout(() => {
-      setLiveUpdate({ name: 'Ananya', from: 8, to: 7 });
+      setLiveUpdate({ name: user?.name || 'Ananya', from: 8, to: 7 });
       setTimeout(() => setLiveUpdate(null), 4000);
     }, 3000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [user?.name]);
+
+  useEffect(() => {
+    if (!user?.classId && !user?.class_id) return;
+
+    const classId = user.classId || user.class_id;
+    let active = true;
+
+    leaderboardsAPI.getClass(classId)
+      .then((res) => {
+        if (!active) return;
+        const next = (res.data || []).map((entry, index) => ({ ...entry, rank: entry.rank || index + 1, name: entry.name || `Student ${index + 1}`, points: Number(entry.points || 0), avatar: entry.avatar || ['🌳', '🌸', '💧', '🌍'][index % 4] }));
+        if (next.length) setClassBoard(next);
+      })
+      .catch(() => {
+        if (active) setClassBoard(fallbackClass);
+      });
+
+    if (user?.schoolId) {
+      leaderboardsAPI.getSchool(user.schoolId)
+        .then((res) => {
+          if (!active) return;
+          const next = (res.data || []).map((entry, index) => ({ ...entry, rank: entry.rank || index + 1, name: entry.name || `School ${index + 1}`, points: Number(entry.points || 0), avatar: entry.avatar || ['🏫', '🌱', '🌿'][index % 3] }));
+          if (next.length) setSchoolBoard(next);
+        })
+        .catch(() => {
+          if (active) setSchoolBoard(fallbackSchool);
+        });
+    }
+
+    competitionsAPI.getAll()
+      .then((res) => {
+        if (!active) return;
+        const next = (res.data || []).filter((item) => item.status === 'active' || item.status === 'upcoming');
+        if (next.length) setCompetitions(next);
+      })
+      .catch(() => {
+        if (active) setCompetitions(fallbackCompetitions);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.classId, user?.class_id, user?.schoolId]);
 
   const tabs = [
     { id: 'class', label: 'Class', icon: Users },
@@ -77,7 +141,6 @@ export default function LeaderboardPage() {
         <p className="text-sm text-muted-foreground mt-1">Compete with classmates and other schools</p>
       </motion.div>
 
-      {/* Live Update Toast */}
       <AnimatePresence>
         {liveUpdate && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
@@ -89,9 +152,8 @@ export default function LeaderboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Tabs */}
       <motion.div variants={item} className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
-        {tabs.map(t => (
+        {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition ${
               tab === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -101,18 +163,17 @@ export default function LeaderboardPage() {
         ))}
       </motion.div>
 
-      {/* Green Score Section */}
       <motion.div variants={item} className="glass rounded-xl p-5">
         <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
           <Star className="w-4 h-4 text-eco-amber" /> Green Score Breakdown
         </h3>
         <div className="grid grid-cols-4 gap-2">
           {[
-            { label: 'Learning', score: mockGreenScore.learningScore, color: '#3b82f6' },
-            { label: 'Missions', score: mockGreenScore.missionScore, color: '#22c55e' },
-            { label: 'Verified', score: mockGreenScore.verifiedActionScore, color: '#14b8a6' },
-            { label: 'Participation', score: mockGreenScore.participationScore, color: '#f59e0b' },
-          ].map(s => (
+            { label: 'Learning', score: 78, color: '#3b82f6' },
+            { label: 'Missions', score: 82, color: '#22c55e' },
+            { label: 'Verified', score: 76, color: '#14b8a6' },
+            { label: 'Participation', score: 88, color: '#f59e0b' },
+          ].map((s) => (
             <div key={s.label} className="text-center">
               <p className="text-lg font-bold" style={{ color: s.color }}>{s.score}</p>
               <p className="text-[10px] text-muted-foreground">{s.label}</p>
@@ -121,21 +182,20 @@ export default function LeaderboardPage() {
         </div>
         <div className="mt-3 flex items-center justify-center gap-2">
           <span className="text-sm text-muted-foreground">Overall Green Score:</span>
-          <span className="text-xl font-bold text-gradient">{mockGreenScore.overall}</span>
+          <span className="text-xl font-bold text-gradient">{Math.round((78 + 82 + 76 + 88) / 4)}</span>
         </div>
       </motion.div>
 
-      {/* Leaderboard List */}
       <motion.div variants={container} className="space-y-2">
-        {tab === 'class' && mockClassLeaderboard.sort((a, b) => a.rank - b.rank).map((entry, i) => (
-          <LeaderboardEntry key={entry.name} entry={entry} index={i} isCurrentUser={entry.name === user?.name} />
+        {tab === 'class' && classBoard.slice().sort((a, b) => a.rank - b.rank).map((entry, i) => (
+          <LeaderboardEntry key={`${entry.name}-${i}`} entry={entry} index={i} isCurrentUser={entry.name === user?.name} />
         ))}
-        {tab === 'school' && mockSchoolLeaderboard.map((entry, i) => (
-          <LeaderboardEntry key={entry.name} entry={entry} index={i} isCurrentUser={entry.name === user?.schoolName} />
+        {tab === 'school' && schoolBoard.map((entry, i) => (
+          <LeaderboardEntry key={`${entry.name}-${i}`} entry={entry} index={i} isCurrentUser={entry.name === user?.schoolName} />
         ))}
         {tab === 'competition' && (
           <div className="space-y-3">
-            {mockCompetitions.filter(c => c.status === 'active' || c.status === 'upcoming').map((comp, i) => (
+            {competitions.filter((c) => c.status === 'active' || c.status === 'upcoming').map((comp) => (
               <motion.div key={comp.id} variants={item} className="glass rounded-xl p-5">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold">{comp.name}</h3>
@@ -146,7 +206,7 @@ export default function LeaderboardPage() {
                 <p className="text-xs text-muted-foreground mb-3">{comp.description}</p>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div><p className="text-lg font-bold">{comp.schools}</p><p className="text-[10px] text-muted-foreground">Schools</p></div>
-                  <div><p className="text-lg font-bold">{comp.students.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Students</p></div>
+                  <div><p className="text-lg font-bold">{Number(comp.students || 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Students</p></div>
                   <div><p className="text-lg font-bold">{comp.missions}</p><p className="text-[10px] text-muted-foreground">Missions</p></div>
                 </div>
               </motion.div>

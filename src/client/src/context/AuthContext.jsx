@@ -1,6 +1,25 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { mockUsers } from '../data/mockData';
+import { authAPI, usersAPI } from '../services/api';
+
+const normalizeUser = (payload) => {
+  const user = payload?.user ?? payload ?? {};
+  return {
+    ...user,
+    id: user.id,
+    name: user.name || 'Student',
+    email: user.email || '',
+    role: user.role || 'student',
+    classId: user.classId || user.class_id || user.className || 'c1',
+    className: user.className || user.class_name || user.class || '8-A',
+    schoolId: user.schoolId || user.school_id || 's1',
+    schoolName: user.schoolName || user.school_name || user.school || 'Green Valley School',
+    points: Number(user.points ?? 0),
+    streak: Number(user.streak ?? 0),
+    level: Number(user.level ?? 1),
+    badges: Number(user.badges ?? 0),
+    avatar: user.avatar || (user.role === 'teacher' ? '👩‍🏫' : user.role === 'organizer' ? '👩‍💼' : '🌿'),
+  };
+};
 
 const AuthContext = createContext(null);
 
@@ -9,36 +28,32 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('eco_user');
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch { localStorage.removeItem('eco_user'); }
+    const token = localStorage.getItem('eco_token');
+
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    authAPI.getProfile()
+      .then((res) => {
+        const nextUser = normalizeUser(res.data);
+        setUser(nextUser);
+      })
+      .catch(() => {
+        localStorage.removeItem('eco_token');
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email, password, role) => {
-    // Mock login — find user by email and role
-    const found = mockUsers.find(
-      u => u.email === email && u.role === role
-    );
-    if (!found) {
-      // For demo: allow login with any email if role matches a default user
-      const defaultUser = mockUsers.find(u => u.role === role);
-      if (defaultUser) {
-        const userData = { ...defaultUser, email };
-        localStorage.setItem('eco_token', 'mock_jwt_' + Date.now());
-        localStorage.setItem('eco_user', JSON.stringify(userData));
-        setUser(userData);
-        return userData;
-      }
-      throw new Error('Invalid credentials');
-    }
-    localStorage.setItem('eco_token', 'mock_jwt_' + Date.now());
-    localStorage.setItem('eco_user', JSON.stringify(found));
-    setUser(found);
-    return found;
+    const response = await authAPI.login({ email, password, role });
+    const userData = normalizeUser(response.data.user ?? response.data);
+    localStorage.setItem('eco_token', response.data.token || 'mock_jwt_' + Date.now());
+    setUser(userData);
+    return userData;
   }, []);
 
   const logout = useCallback(() => {
@@ -47,8 +62,43 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback(async (updater) => {
+    const current = user;
+    const next = typeof updater === 'function' ? updater(current) : updater;
+    if (!next) return null;
+
+    const normalized = normalizeUser(next);
+    setUser(normalized);
+
+    if (!normalized.id) return normalized;
+
+    try {
+      const response = await usersAPI.update(normalized.id, {
+        points: normalized.points,
+        streak: normalized.streak,
+        level: normalized.level,
+        badges: normalized.badges,
+      });
+
+      const synced = normalizeUser(response.data?.user ?? response.data ?? normalized);
+      setUser(synced);
+      return synced;
+    } catch (error) {
+      console.warn('User profile sync to database failed:', error.message);
+      return normalized;
+    }
+  }, [user]);
+
+  const addPoints = useCallback((pointsToAdd) => {
+    if (!Number.isFinite(Number(pointsToAdd)) || Number(pointsToAdd) === 0) return;
+    return updateUser((current) => {
+      const nextUser = current || { id: 'student', name: 'Student', role: 'student', points: 0, streak: 0, level: 1 };
+      return { ...nextUser, points: Number(nextUser.points ?? 0) + Number(pointsToAdd) };
+    });
+  }, [updateUser]);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, addPoints, loading, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

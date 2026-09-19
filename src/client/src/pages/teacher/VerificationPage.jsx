@@ -1,24 +1,45 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockSubmissions } from '../../data/mockData';
+import { submissionsAPI } from '../../services/api';
 import { Shield, CheckCircle2, XCircle, Eye, MapPin, Clock, Image, X } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function VerificationPage() {
-  const [submissions, setSubmissions] = useState(mockSubmissions);
+  const [submissions, setSubmissions] = useState([]);
   const [viewSub, setViewSub] = useState(null);
   const [filter, setFilter] = useState('pending');
 
+  useEffect(() => {
+    submissionsAPI.getAll()
+      .then((response) => setSubmissions(response.data || []))
+      .catch((error) => {
+        console.error('Failed to load verification submissions:', error);
+        setSubmissions([]);
+      });
+  }, []);
+
   const handleApprove = (id) => {
-    setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'approved', status: 'approved', pointsAwarded: 100 } : s));
-    setViewSub(null);
+    submissionsAPI.approve(id)
+      .then(() => {
+        setSubmissions((subs) => subs.map((submission) => submission.id === id ? { ...submission, teacherApproval: 'approved', status: 'approved', pointsAwarded: submission.pointsAwarded || 100 } : submission));
+        setViewSub(null);
+      })
+      .catch((error) => {
+        console.error('Failed to approve submission:', error);
+      });
   };
 
   const handleReject = (id) => {
-    setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'rejected', status: 'rejected' } : s));
-    setViewSub(null);
+    submissionsAPI.reject(id)
+      .then(() => {
+        setSubmissions((subs) => subs.map((submission) => submission.id === id ? { ...submission, teacherApproval: 'rejected', status: 'rejected' } : submission));
+        setViewSub(null);
+      })
+      .catch((error) => {
+        console.error('Failed to reject submission:', error);
+      });
   };
 
   const filtered = submissions.filter(s => {
