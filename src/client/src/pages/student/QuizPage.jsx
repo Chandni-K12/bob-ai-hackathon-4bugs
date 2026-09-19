@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockQuizzes } from '../../data/mockData';
 import { useAuth } from '../../context/AuthContext';

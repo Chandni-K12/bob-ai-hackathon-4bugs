@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
 import { aiAPI, tasksAPI, submissionsAPI, missionsAPI } from '../../services/api';
@@ -487,14 +488,6 @@ function taskToMission(t) {
   };
 }
 
-import { useSearchParams } from 'react-router-dom';
-
-export default function MissionsPage() {
-  const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const targetId = searchParams.get('id');
-  const targetTitle = searchParams.get('title');
-
 const fallbackMissions = [
   { id: 'm1', title: 'Plastic-Free Week', icon: '♻️', description: 'Avoid single-use plastics for 7 days and track your impact.', topic: 'Waste Management', difficulty: 'Easy', points: 100, progress: 2, total: 7, deadline: '2026-08-30', status: 'in_progress', color: '#22c55e' },
   { id: 'm2', title: 'Water Saver', icon: '💧', description: 'Track daily water-saving habits and reduce unnecessary consumption.', topic: 'Water Conservation', difficulty: 'Medium', points: 75, progress: 3, total: 5, deadline: '2026-08-23', status: 'in_progress', color: '#3b82f6' },
@@ -504,6 +497,9 @@ const fallbackMissions = [
 
 export default function MissionsPage() {
   const { user, addPoints } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetId = searchParams.get('id');
+  const targetTitle = searchParams.get('title');
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
   const [missions, setMissions] = useState(fallbackMissions);
