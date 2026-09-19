@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { mockMissions, mockTopics, mockGreenScore } from '../../data/mockData';
 import { formatNumber } from '../../lib/utils';
 import { Link } from 'react-router-dom';
-import { tasksAPI } from '../../services/api';
+import { tasksAPI, dashboardAPI } from '../../services/api';
 import {
   Zap, Flame, Trophy, School, Target, BookOpen, Award,
   TrendingUp, ArrowRight, Star, ChevronRight, ClipboardList
@@ -45,8 +45,17 @@ function StreakWeek({ week, done }) {
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const [dashboard, setDashboard] = useState(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    dashboardAPI.getStudent(user.id)
+      .then((res) => setDashboard(res.data))
+      .catch((err) => console.error('Could not load dashboard:', err));
+  }, [user?.id]);
   const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7'];
-  const streakWeeks = weeks.map((_, index) => index < Math.min(user?.streak || 1, weeks.length));
+  const streakWeeks = weeks.map((_, index) => index < Math.min(dashboard?.streak ?? 0, weeks.length));
   const activeMissions = mockMissions.filter(m => m.status === 'in_progress').slice(0, 3);
   const recentTopics = mockTopics.slice(0, 4);
 
@@ -57,14 +66,14 @@ export default function StudentDashboard() {
   ];
   const [assignedTasks, setAssignedTasks] = useState(DEFAULT_ASSIGNED);
   useEffect(() => {
-    const classId = user?.className || '8-A';
+    const classId = dashboard?.className ?? '8-A';
     tasksAPI.getByClass(classId)
       .then(res => {
         const live = res.data.filter(t => t.status !== 'completed').slice(0, 3);
         if (live.length) setAssignedTasks(live);
       })
       .catch(() => {}); // server offline → defaults remain
-  }, [user]);
+  }, [dashboard?.className]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">
@@ -72,28 +81,28 @@ export default function StudentDashboard() {
       <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-2xl glow-green">
-            {user?.avatar || '🌿'}
+            {dashboard?.avatar || '🌿'}
           </div>
           <div>
-            <h1 className="text-2xl font-bold">{user?.name || 'Student'}</h1>
+            <h1 className="text-2xl font-bold">{dashboard?.name ?? 'Student'}</h1>
             <p className="text-sm text-muted-foreground">
-              Class {user?.className || '8-A'} • {user?.schoolName || 'Green Valley School'}
+              Class {dashboard?.className ?? '8-A'} • {dashboard?.schoolName ?? 'Green Valley School'}
             </p>
           </div>
         </div>
         <div className="sm:ml-auto flex items-center gap-2">
           <div className="px-3 py-1.5 rounded-full bg-eco-amber/10 text-eco-amber text-sm font-medium flex items-center gap-1.5">
-            <Star className="w-3.5 h-3.5" /> Level {user?.level || 12}
+            <Star className="w-3.5 h-3.5" /> Level {dashboard?.level ?? 0}
           </div>
         </div>
       </motion.div>
 
       {/* Metrics Grid */}
       <motion.div variants={container} className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <MetricCard emoji="⚡" label="Eco Points" value={formatNumber(user?.points || 2450)} sub="+180 this week" color="text-eco-green" gradient="bg-eco-green" />
-        <MetricCard emoji="🔥" label="Weekly Streak" value={`${user?.streak || 1} Weeks`} sub="Streak is active!" color="text-eco-orange" gradient="bg-eco-orange" />
-        <MetricCard emoji="🏆" label="Class Rank" value={`#${user?.classRank || 7}`} sub="↑ 1 position" color="text-eco-blue" gradient="bg-eco-blue" />
-        <MetricCard emoji="🏫" label="School Rank" value={`#${user?.schoolRank || 24}`} sub="↑ 3 positions" color="text-eco-purple" gradient="bg-purple-500" />
+        <MetricCard emoji="⚡" label="Eco Points" value={formatNumber(dashboard?.points ?? 0)} sub="+180 this week" color="text-eco-green" gradient="bg-eco-green" />
+        <MetricCard emoji="🔥" label="Weekly Streak" value={`${dashboard?.streak ?? 0} Weeks`} sub="Streak is active!" color="text-eco-orange" gradient="bg-eco-orange" />
+        <MetricCard emoji="🏆" label="Class Rank" value={`#${dashboard?.classRank ?? 7}`} sub="↑ 1 position" color="text-eco-blue" gradient="bg-eco-blue" />
+        <MetricCard emoji="🏫" label="School Rank" value={`#${dashboard?.schoolRank ?? 24}`} sub="↑ 3 positions" color="text-eco-purple" gradient="bg-purple-500" />
       </motion.div>
 
       {/* Streak Visual */}
@@ -102,7 +111,7 @@ export default function StudentDashboard() {
           <h3 className="font-semibold flex items-center gap-2">
             <span className="text-xl icon-3d icon-bounce">🔥</span> Weekly Streak
           </h3>
-          <span className="text-sm text-eco-orange font-medium">{user?.streak || 1} weeks</span>
+          <span className="text-sm text-eco-orange font-medium">{dashboard?.streak ?? 0} weeks</span>
         </div>
         <div className="flex justify-between">
           {weeks.map((week, i) => (

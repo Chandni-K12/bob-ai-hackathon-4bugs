@@ -113,6 +113,43 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
+app.get('/api/dashboard/student/:studentId', async (req, res) => {
+  if (!db.hasDatabase) {
+    return res.status(503).json({ error: 'Database is not configured' });
+  }
+
+  try {
+    const result = await db.query(`
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.points,
+        u.streak,
+        u.level,
+        u.badges,
+        c.id AS "classId",
+        c.name AS "className",
+        s.id AS "schoolId",
+        s.name AS "schoolName",
+        s.green_score AS "greenScore"
+      FROM users u
+      LEFT JOIN classes c ON c.id = u.class_id
+      LEFT JOIN schools s ON s.id = u.school_id
+      WHERE u.id = $1 AND u.role = 'student'
+    `, [req.params.studentId]);
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Student dashboard query failed:', err.message);
+    return res.status(500).json({ error: 'Unable to load student dashboard' });
+  }
+});
+
 app.get('/api/auth/profile', async (req, res, next) => {
   if (!db.hasDatabase) return next();
   try {
