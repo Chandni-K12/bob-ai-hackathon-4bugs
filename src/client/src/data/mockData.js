@@ -213,22 +213,76 @@ export const mockQuizzes = [
   },
 ];
 
-// ---------- CROSSWORD DATA ----------
+// ---------- CROSSWORD DATA (Exact Screenshot Replica Grid) ----------
 const crosswordWords = {
   'Waste Management': {
-    Beginner: [['BIN', 'A container used for collecting waste', 'across', 0, 0], ['REUSE', 'Use an item again instead of throwing it away', 'across', 4, 0], ['PAPER', 'Material commonly made from trees', 'across', 8, 0], ['RECYCLE', 'Process materials so they can become new products', 'down', 0, 10], ['CLEAN', 'Free from dirt or unwanted waste', 'down', 2, 5]],
-    Intermediate: [['COMPOST', 'Decomposed organic matter used to fertilize soil', 'across', 0, 0], ['LANDFILL', 'Place where waste is buried', 'across', 4, 0], ['PLASTIC', 'Durable material found in many disposable products', 'across', 8, 0], ['SEGREGATE', 'Separate waste into different categories', 'down', 0, 11], ['REUSE', 'Use something again rather than discard it', 'down', 2, 5], ['RECYCLE', 'Process used materials into new products', 'down', 1, 1], ['HAZARDOUS', 'Potentially dangerous to people or the environment', 'down', 3, 8]],
-    Advanced: [['CIRCULAR', 'Describes an economy that keeps materials in use', 'across', 0, 0], ['BIODEGRADE', 'Break down naturally through living organisms', 'across', 4, 0], ['MICROPLASTIC', 'Tiny plastic particle found in the environment', 'across', 8, 0], ['UPCYCLING', 'Turning waste into a product of higher value', 'down', 0, 12], ['RECOVERY', 'Extraction of useful materials or energy from waste', 'down', 2, 6], ['ZEROWASTE', 'Design approach that aims to eliminate disposal', 'down', 0, 2], ['EXTENDED', 'Describes producer responsibility beyond a sale', 'down', 2, 9], ['TOXICITY', 'Degree to which a substance can cause harm', 'down', 5, 4], ['RESOURCE', 'Useful material that can be conserved or reused', 'down', 1, 7]],
+    Beginner: [
+      ['BIN', 'A container used for collecting waste', 'Such containers are placed in homes, schools, and public spaces.', 'across', 0, 0],
+      ['PLANET', 'The Earth and its living environment', 'Our natural living home that requires protection.', 'across', 4, 0],
+      ['PAPER', 'Material made from wood pulp', 'Recyclable material made from trees.', 'across', 8, 0],
+      ['RECYCLE', 'Process materials so they can become new products', 'Converts used materials back into raw materials.', 'down', 0, 10],
+      ['CLEAN', 'Free from dirt or unwanted waste', 'Keeping environments free from pollution.', 'down', 2, 4],
+    ],
+    Intermediate: [
+      ['SUN', 'The star providing Earth with heat and energy', 'Powers solar energy generation.', 'across', 0, 0],
+      ['SAFETY', 'Protection of human health and ecosystems', 'Precautions taken to avoid environmental hazards.', 'across', 4, 0],
+      ['EARTH', 'Our home planet undergoing warming', 'The living planet we protect.', 'across', 8, 0],
+      ['EMISSION', 'Release of greenhouse gases into the air', 'Output from burning fossil fuels.', 'down', 0, 10],
+      ['WATER', 'Essential liquid for all life', 'Vital natural fluid.', 'down', 2, 4],
+    ],
+    Advanced: [
+      ['ECO', 'Short prefix for ecological systems', 'Relating to the environment.', 'across', 0, 0],
+      ['PLANET', 'The Earth ecosystem', 'Our living world.', 'across', 4, 0],
+      ['TREES', 'Tall plants absorbing carbon dioxide', 'Forest canopy trees.', 'across', 8, 0],
+      ['REDUCE', 'Lowering consumption at source', 'Cutting waste creation.', 'down', 0, 10],
+      ['CLEAN', 'Free from pollution and contaminants', 'Pristine state.', 'down', 2, 4],
+    ],
   },
   Climate: {
-    Beginner: [['SUN', 'The star that provides Earth with light and heat', 'across', 0, 0], ['RAIN', 'Water falling from clouds', 'across', 4, 0], ['WIND', 'Moving air', 'across', 8, 0], ['EARTH', 'The planet on which we live', 'down', 0, 9], ['HOT', 'Having a high temperature', 'down', 2, 5]],
-    Intermediate: [['CLIMATE', 'Long-term weather patterns in a region', 'across', 0, 0], ['CARBON', 'Element released when fossil fuels burn', 'across', 4, 0], ['DROUGHT', 'A long period with very little rainfall', 'across', 8, 0], ['EMISSION', 'Release of gases or particles into the air', 'down', 0, 11], ['WARMING', 'Increase in average global temperature', 'down', 2, 6], ['OCEAN', 'Large body of salt water affected by warming', 'down', 1, 1], ['FLOOD', 'Overflow of water onto normally dry land', 'down', 3, 8]],
-    Advanced: [['GREENHOUSE', 'Atmospheric effect that traps heat near Earth', 'across', 0, 0], ['MITIGATION', 'Action that reduces the causes of climate change', 'across', 4, 0], ['ADAPTATION', 'Adjustment to actual or expected climate effects', 'across', 8, 0], ['SEQUESTRATION', 'Long-term capture and storage of carbon', 'down', 0, 12], ['ALBEDO', 'The amount of sunlight reflected by a surface', 'down', 2, 6], ['FEEDBACK', 'Process that amplifies or reduces climate change', 'down', 0, 2], ['RESILIENCE', 'Capacity to recover from climate impacts', 'down', 2, 9], ['AEROSOL', 'Tiny particle suspended in the atmosphere', 'down', 5, 4], ['PRECIPITATION', 'Water released from clouds as rain or snow', 'down', 1, 7]],
+    Beginner: [
+      ['SUN', 'Star providing light and heat', 'Drives Earth climate system.', 'across', 0, 0],
+      ['PLANET', 'Earth ecosystem', 'Our living world.', 'across', 4, 0],
+      ['EARTH', 'Our home planet', 'Third planet from the sun.', 'across', 8, 0],
+      ['CLIMATE', 'Long term weather patterns', 'Decadal average weather.', 'down', 0, 10],
+      ['CLEAN', 'Pure unpolluted state', 'Fresh environment.', 'down', 2, 4],
+    ],
+    Intermediate: [
+      ['BIN', 'Waste container', 'Collection vessel.', 'across', 0, 0],
+      ['SAFETY', 'Environmental precautions', 'Hazard prevention.', 'across', 4, 0],
+      ['TREES', 'Forest canopy plants', 'Carbon absorbers.', 'across', 8, 0],
+      ['WARMING', 'Global temperature increase', 'Rising global heat.', 'down', 0, 10],
+      ['WATER', 'Life sustaining liquid', 'Vital freshwater resource.', 'down', 2, 4],
+    ],
+    Advanced: [
+      ['ECO', 'Ecological prefix', 'Environmental tag.', 'across', 0, 0],
+      ['PLANET', 'Earth ecosystem', 'Living planet.', 'across', 4, 0],
+      ['PAPER', 'Wood pulp sheet', 'Recyclable paper.', 'across', 8, 0],
+      ['AEROSOL', 'Atmospheric particle', 'Suspended microparticle.', 'down', 0, 10],
+      ['CLEAN', 'Free of pollutants', 'Clean ecosystem.', 'down', 2, 4],
+    ],
   },
   Biodiversity: {
-    Beginner: [['TREE', 'A tall plant with a trunk and branches', 'across', 0, 0], ['BIRD', 'An animal with feathers and wings', 'across', 4, 0], ['FISH', 'An animal that lives in water', 'across', 8, 0], ['LIFE', 'A quality shared by plants and animals', 'down', 0, 8], ['WILD', 'Living in nature rather than being domesticated', 'down', 2, 4]],
-    Intermediate: [['HABITAT', 'The natural home of an organism', 'across', 0, 0], ['SPECIES', 'A group of similar organisms that can reproduce', 'across', 4, 0], ['POLLINATOR', 'Animal that carries pollen between flowers', 'across', 8, 0], ['NATIVE', 'Naturally occurring in a particular place', 'down', 0, 11], ['CORAL', 'Marine animal that builds a reef structure', 'down', 2, 5], ['ADAPT', 'Change to survive in a different environment', 'down', 1, 1], ['PREDATOR', 'Animal that hunts another animal for food', 'down', 3, 8]],
-    Advanced: [['ECOSYSTEM', 'Community of organisms interacting with their environment', 'across', 0, 0], ['BIODIVERSITY', 'Variety of living organisms in an ecosystem', 'across', 4, 0], ['CONSERVATION', 'Protection and careful management of nature', 'across', 8, 0], ['ENDEMIC', 'Found naturally only in a particular geographic area', 'down', 0, 12], ['CORRIDOR', 'Connected habitat that helps wildlife move safely', 'down', 2, 6], ['GENETIC', 'Relating to inherited variation within a species', 'down', 0, 2], ['INVASIVE', 'Non-native species that causes ecological harm', 'down', 2, 9], ['MIGRATION', 'Seasonal movement of animals between regions', 'down', 5, 4], ['KEYSTONE', 'Species with an especially large ecosystem impact', 'down', 1, 7]],
+    Beginner: [
+      ['CAT', 'Small domestic or wild feline', 'Feline mammal species.', 'across', 0, 0],
+      ['PLANET', 'Global biosphere', 'Our natural planet.', 'across', 4, 0],
+      ['FLORA', 'Plant life in a region', 'Native plant species.', 'across', 8, 0],
+      ['SPECIES', 'Group of interbreeding organisms', 'Biological classification unit.', 'down', 0, 10],
+      ['CLEAN', 'Pure living environment', 'Pristine nature.', 'down', 2, 4],
+    ],
+    Intermediate: [
+      ['DOG', 'Domestic canine animal', 'Companion animal.', 'across', 0, 0],
+      ['SAFETY', 'Species protection protocols', 'Conservation safety.', 'across', 4, 0],
+      ['CORAL', 'Reef building marine animal', 'Ocean reef builder.', 'across', 8, 0],
+      ['ANIMALS', 'Living fauna organisms', 'Wild living beings.', 'down', 0, 10],
+      ['WATER', 'Aquatic species habitat', 'Freshwater environment.', 'down', 2, 4],
+    ],
+    Advanced: [
+      ['ANT', 'Social insect worker', 'Colony building insect.', 'across', 0, 0],
+      ['PLANET', 'Global biosphere', 'Living Earth.', 'across', 4, 0],
+      ['TREES', 'Woody canopy plants', 'Forest tree species.', 'across', 8, 0],
+      ['INVASIVE', 'Harmful alien species', 'Aggressive non-native pest.', 'down', 0, 10],
+      ['CLEAN', 'Unpolluted ecosystem', 'Clean wildlife habitat.', 'down', 2, 4],
+    ],
   },
 };
 
@@ -238,10 +292,20 @@ export const mockCrosswordPuzzles = Object.entries(crosswordWords).flatMap(([top
     topic,
     level,
     size: 13,
-    words: words.map(([word, clue, direction, row, col], index) => ({ word, clue: `${index + 1}${direction === 'across' ? 'A' : 'D'}. ${clue}`, direction, row, col, num: index + 1 })),
+    words: words.map(([word, clue, hint, direction, row, col], index) => ({
+      word,
+      clue: `${index + 1}${direction === 'across' ? 'A' : 'D'}. ${clue}`,
+      hint,
+      direction,
+      row,
+      col,
+      num: index + 1,
+    })),
     bonusPoints: level === 'Advanced' ? 100 : level === 'Intermediate' ? 75 : 50,
   }))
 );
+
+
 
 // ---------- COMPETITIONS ----------
 export const mockCompetitions = [
