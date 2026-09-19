@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Puzzle, Clock, Award, Star, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -125,8 +124,6 @@ export default function CrosswordPage() {
     const letter = val.toUpperCase().slice(-1);
     const newGrid = userGrid.map(row => [...row]);
     newGrid[r][c] = letter;
-    const newGrid = userGrid.map((row) => [...row]);
-    newGrid[r][c] = val.toUpperCase().slice(-1);
     setUserGrid(newGrid);
     if (!started) setStarted(true);
     // Auto-advance to next cell after typing a letter
@@ -153,7 +150,6 @@ export default function CrosswordPage() {
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
     const basePoints = pct > 0 ? Math.round(pct * 0.5) : 0;
     const speedBonus = (pct === 100 && timer <= 300) ? 50 : 0;
-    const speedBonus = pct === 100 && timer <= 300 ? 50 : 0;
     const totalPoints = basePoints + speedBonus;
 
     // Build per-word feedback
@@ -257,24 +253,6 @@ export default function CrosswordPage() {
             ))}
           </div>
         </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-sm"><Clock className="w-4 h-4 text-muted-foreground" /> {formatTime(timer)}</div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-sm"><Star className="w-4 h-4 text-eco-amber" /> {progress}%</div>
-        </div>
-      </div>
-
-      <div className="glass rounded-xl p-4 grid sm:grid-cols-2 gap-3">
-        <label className="text-sm font-medium">
-          Topic
-          <select value={selectedTopic} onChange={(e) => handleTopicChange(e.target.value)} className="mt-1 w-full rounded-lg bg-secondary border border-border px-3 py-2 text-sm outline-none focus:border-primary">
-            {topics.map((topic) => <option key={topic} value={topic}>{topic}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium">
-          Level
-          <select value={selectedLevel} onChange={(e) => handleLevelChange(e.target.value)} className="mt-1 w-full rounded-lg bg-secondary border border-border px-3 py-2 text-sm outline-none focus:border-primary">
-            {levels.map((level) => <option key={level} value={level}>{level}</option>)}
-          </select>
-        </label>
       </div>
 
       {/* ── Result card ── */}
@@ -312,18 +290,6 @@ export default function CrosswordPage() {
               className="px-6 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium flex items-center gap-2 transition-colors">
               <RotateCcw className="w-4 h-4" /> {score === 100 || isRevealed ? 'Play Again' : 'Reset'}
             </button>
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass rounded-xl p-6 text-center">
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }} className="w-16 h-16 mx-auto rounded-2xl gradient-primary flex items-center justify-center mb-3 glow-green">
-            <CheckCircle2 className="w-8 h-8 text-white" />
-          </motion.div>
-          <h2 className="text-xl font-bold mb-1">{isRevealed ? '👀 Answers Revealed' : score === 100 ? '🎉 Perfect!' : score >= 70 ? '👏 Great Job!' : '💪 Keep Trying!'}</h2>
-          <p className="text-muted-foreground text-sm mb-3">{isRevealed ? 'Solution shown • Try solving on your own!' : `Score: ${score}% • Time: ${formatTime(timer)}`}</p>
-          <motion.p initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: 'spring' }} className={`text-2xl font-bold ${earnedPoints > 0 ? 'text-eco-green' : 'text-muted-foreground'}`}>+{earnedPoints} Eco Points</motion.p>
-          {earnedPoints > 50 && <p className="text-xs text-eco-amber mt-1 font-medium">⚡ Includes +50 speed bonus for finishing under 5 minutes!</p>}
-          {earnedPoints === 0 && !isRevealed && <p className="text-xs text-muted-foreground mt-1">Get letters right to earn Eco Points.</p>}
-          <div className="flex items-center justify-center gap-3 mt-4">
-            {!isRevealed && score < 100 && <button onClick={() => setCompleted(false)} className="px-4 py-2 rounded-lg gradient-primary text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity">Keep Trying</button>}
-            <button onClick={resetPuzzle} className="px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4" /> {score === 100 || isRevealed ? 'Play Again' : 'Reset'}</button>
           </div>
 
           {/* ── Answer Breakdown ── */}
@@ -473,52 +439,6 @@ export default function CrosswordPage() {
               <span>{filledCount} / {totalCount} cells filled</span>
               <span className="font-medium">{progress}%</span>
             </div>
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="glass rounded-xl p-4 overflow-x-auto">
-            <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(32px, 40px))` }}>
-              {grid.map((row, r) => row.map((cell, c) => (
-                <div key={`${r}-${c}`} className={`relative aspect-square rounded-none border ${cell ? 'bg-white border-slate-500' : '!bg-green-200 border-slate-600'}`}>
-                  {nums[r][c] && <span className="absolute top-0 left-0.5 text-[8px] text-muted-foreground font-medium">{nums[r][c]}</span>}
-                  {cell && (
-                    <input
-                      type="text"
-                      maxLength={1}
-                      value={userGrid[r][c] || ''}
-                      onChange={(e) => handleCellInput(r, c, e.target.value)}
-                      className={`w-full h-full text-center uppercase font-bold text-sm bg-transparent outline-none ${completed && userGrid[r][c] === cell.letter ? 'text-eco-green' : completed && userGrid[r][c] && userGrid[r][c] !== cell.letter ? 'text-destructive' : 'text-foreground'}`}
-                      disabled={completed}
-                    />
-                  )}
-                </div>
-              )))}
-            </div>
-          </div>
-          <div className="flex gap-3 mt-4">
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={checkAnswers} disabled={completed} className="flex-1 py-3 rounded-xl gradient-primary text-white font-semibold disabled:opacity-50">Check Answers</motion.button>
-            <button onClick={revealAll} disabled={completed} className="px-4 py-3 rounded-xl bg-secondary hover:bg-secondary/80 text-sm font-medium disabled:opacity-50">Reveal</button>
-            <button onClick={resetPuzzle} className="px-4 py-3 rounded-xl bg-secondary hover:bg-secondary/80"><RotateCcw className="w-4 h-4" /></button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="glass rounded-xl p-4">
-            <h3 className="font-semibold text-sm mb-3 text-eco-blue">Across →</h3>
-            <div className="space-y-2">
-              {acrossClues.map((w) => <p key={w.num} className="text-xs text-muted-foreground leading-relaxed">{w.clue}</p>)}
-            </div>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <h3 className="font-semibold text-sm mb-3 text-eco-purple">Down ↓</h3>
-            <div className="space-y-2">
-              {downClues.map((w) => <p key={w.num} className="text-xs text-muted-foreground leading-relaxed">{w.clue}</p>)}
-            </div>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Award className="w-4 h-4 text-eco-amber" /> Bonus Points</h3>
-            <p className="text-xs text-muted-foreground">Complete under 5 minutes for +50 bonus Eco Points!</p>
-            <div className="mt-2 h-1.5 bg-secondary rounded-full overflow-hidden"><motion.div animate={{ width: `${progress}%` }} className="h-full gradient-primary rounded-full" /></div>
-            <p className="text-xs text-muted-foreground mt-1">{filledCount}/{totalCount} cells filled</p>
           </div>
         </div>
       </div>
