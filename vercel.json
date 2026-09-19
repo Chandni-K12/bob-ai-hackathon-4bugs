@@ -3,7 +3,8 @@
   "buildCommand": "cd src/client && npm install && npm run build",
   "outputDirectory": "src/client/dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/src/api" }
+    { "source": "/api/(.*)", "destination": "/src/api/index.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
     "src/api/index.js": {
