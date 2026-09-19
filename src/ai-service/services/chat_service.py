@@ -5,8 +5,8 @@ import json
 import logging
 import os
 import re
-import requests
 from dotenv import load_dotenv
+from bob_client import run_bob
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -159,9 +159,6 @@ def get_chat_reply(message: str) -> str:
     Call IBM Bob to answer student questions. Falls back to smart responder if Bob fails.
     """
     api_key = os.environ.get("BOB_API_KEY", "")
-    project_id = os.environ.get("WATSONX_PROJECT_ID", "")
-    url = os.environ.get("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
-    model_id = os.environ.get("WATSONX_MODEL_ID", _DEFAULT_MODEL)
 
     prompt = (
         "You are an AI Eco Mentor for school students on GenGreen, an environmental education platform.\n"
@@ -172,24 +169,7 @@ def get_chat_reply(message: str) -> str:
 
     if api_key:
         try:
-            body: dict = {
-                "model_id": model_id,
-                "input": prompt,
-                "parameters": {"max_new_tokens": 250},
-            }
-            if project_id and project_id != "your_project_id_here":
-                body["project_id"] = project_id
-            response = requests.post(
-                f"{url}/ml/v1/text/generation?version=2023-05-29",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-                timeout=15,
-            )
-            response.raise_for_status()
-            raw_text = response.json()["results"][0]["generated_text"].strip()
+            raw_text = run_bob(prompt)
             if raw_text:
                 return raw_text
         except Exception as exc:

@@ -24,8 +24,8 @@ import os
 import re
 from typing import Optional
 
-import requests
 from dotenv import load_dotenv
+from bob_client import run_bob
 
 load_dotenv()
 
@@ -34,19 +34,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
-def _get_credentials() -> tuple[str, str, str, str]:
-    """Return (api_key, project_id, endpoint_url, model_id).
-
-    project_id is optional for Inference-scoped Bob keys (the scope is baked
-    into the key). If WATSONX_PROJECT_ID is set it is included in the request
-    body; otherwise the body is sent without it.
-    """
-    api_key = os.getenv("BOB_API_KEY", "")
-    project_id = os.getenv("WATSONX_PROJECT_ID", "")  # optional
-    url = os.getenv("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
-    model_id = os.getenv("WATSONX_MODEL_ID", "ibm/granite-3-8b-instruct")
-    return (api_key, project_id, url, model_id)
 
 # Confidence band that triggers manual teacher review regardless of pass/fail
 _BORDERLINE_LOW = 0.70
@@ -117,25 +104,7 @@ def _call_bob(prompt: str) -> dict:
     Returns a parsed dict with student_explanation and teacher_explanation.
     Raises on any error so the caller can fall back gracefully.
     """
-    api_key, project_id, url, model_id = _get_credentials()
-    body: dict = {
-        "model_id": model_id,
-        "input": prompt,
-        "parameters": {"max_new_tokens": 400},
-    }
-    if project_id and project_id != "your_project_id_here":
-        body["project_id"] = project_id
-    response = requests.post(
-        f"{url}/ml/v1/text/generation?version=2023-05-29",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json=body,
-        timeout=30,
-    )
-    response.raise_for_status()
-    raw: str = response.json()["results"][0]["generated_text"]
+    raw = run_bob(prompt)
 
     # Strip optional markdown code fence that some model versions add
     clean = raw.strip()

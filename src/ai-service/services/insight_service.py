@@ -27,9 +27,9 @@ import logging
 import os
 import re
 
-import requests
 import requests as http_requests
 from dotenv import load_dotenv
+from bob_client import run_bob
 
 load_dotenv()
 
@@ -249,9 +249,6 @@ def get_class_insights(class_id: str) -> dict:
 
     # Step 2 — check Bob credentials before attempting a network call
     api_key = os.environ.get("BOB_API_KEY", "")
-    project_id = os.environ.get("WATSONX_PROJECT_ID", "")  # optional
-    url = os.environ.get("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
-    model_id = os.environ.get("WATSONX_MODEL_ID", _DEFAULT_MODEL)
 
     if not api_key:
         logger.warning("BOB_API_KEY not set — returning data-grounded fallback response.")
@@ -268,24 +265,7 @@ def get_class_insights(class_id: str) -> dict:
 
     # Step 4 — call IBM Bob
     try:
-        body: dict = {
-            "model_id": model_id,
-            "input": prompt,
-            "parameters": {"max_new_tokens": 500},
-        }
-        if project_id and project_id != "your_project_id_here":
-            body["project_id"] = project_id
-        response = requests.post(
-            f"{url}/ml/v1/text/generation?version=2023-05-29",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=body,
-            timeout=30,
-        )
-        response.raise_for_status()
-        raw_text: str = response.json()["results"][0]["generated_text"]
+        raw_text = run_bob(prompt)
     except Exception as exc:
         logger.warning("IBM Bob call failed: %s — returning data-grounded fallback response.", exc)
         return _fallback_insights(class_id, summary)
