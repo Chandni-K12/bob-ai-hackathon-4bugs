@@ -104,26 +104,9 @@ def test_parse_normalises_unknown_learning_style():
 # Integration-style tests for get_personalized_recommendation
 # ---------------------------------------------------------------------------
 
-class _FakeResponse:
-    """Mimics requests.Response returning generated_text."""
-    def __init__(self, text, status_code=200):
-        self._text = text
-        self.status_code = status_code
-
-    def raise_for_status(self):
-        if self.status_code != 200:
-            raise Exception(f"HTTP Error {self.status_code}")
-
-    def json(self):
-        return {"results": [{"generated_text": self._text}]}
-
-
-@patch.dict("os.environ", {
-    "BOB_API_KEY": "fake-key",
-    "BOB_API_ENDPOINT": "https://us-south.ml.cloud.ibm.com",
-})
-@patch("services.mentor_service.requests.post", return_value=_FakeResponse(_GOOD_BOB_JSON))
-def test_bob_success_returns_parsed_recommendation(mock_post):
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", return_value=_GOOD_BOB_JSON)
+def test_bob_success_returns_parsed_recommendation(mock_run_bob):
     """Happy path: Bob returns valid JSON → all four fields are correctly parsed."""
     req = _make_request()
     result = get_personalized_recommendation(req)
@@ -134,12 +117,9 @@ def test_bob_success_returns_parsed_recommendation(mock_post):
     assert result["learning_style"] == "scenario-based"
 
 
-@patch.dict("os.environ", {
-    "BOB_API_KEY": "fake-key",
-    "BOB_API_ENDPOINT": "https://us-south.ml.cloud.ibm.com",
-})
-@patch("services.mentor_service.requests.post", side_effect=Exception("Connection timeout"))
-def test_bob_network_error_returns_unable_response(mock_post):
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", side_effect=Exception("Connection timeout"))
+def test_bob_network_error_returns_unable_response(mock_run_bob):
     """Network failure → fallback response, no crash."""
     req = _make_request()
     result = get_personalized_recommendation(req)
@@ -150,12 +130,9 @@ def test_bob_network_error_returns_unable_response(mock_post):
     assert "learning_style" in result
 
 
-@patch.dict("os.environ", {
-    "BOB_API_KEY": "fake-key",
-    "BOB_API_ENDPOINT": "https://us-south.ml.cloud.ibm.com",
-})
-@patch("services.mentor_service.requests.post", return_value=_FakeResponse("Sorry, I cannot help."))
-def test_bob_unparseable_output_returns_unable_response(mock_post):
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", return_value="Sorry, I cannot help.")
+def test_bob_unparseable_output_returns_unable_response(mock_run_bob):
     """Bob returns prose instead of JSON → fallback response."""
     req = _make_request()
     result = get_personalized_recommendation(req)
@@ -168,7 +145,7 @@ def test_missing_credentials_returns_unable_response():
     """No env vars set → immediate fallback response, no network call attempted."""
     with patch.dict("os.environ", {}, clear=False):
         import os
-        saved_key = os.environ.pop("BOB_API_KEY", None)
+        saved_key = os.environ.pop("GEMINI_API_KEY", None)
         try:
             req = _make_request()
             result = get_personalized_recommendation(req)
@@ -176,22 +153,17 @@ def test_missing_credentials_returns_unable_response():
             assert "reason" in result
         finally:
             if saved_key is not None:
-                os.environ["BOB_API_KEY"] = saved_key
+                os.environ["GEMINI_API_KEY"] = saved_key
 
 
-@patch.dict("os.environ", {
-    "BOB_API_KEY": "fake-key",
-    "BOB_API_ENDPOINT": "https://us-south.ml.cloud.ibm.com",
-})
-@patch("services.mentor_service.requests.post", return_value=_FakeResponse(
-    json.dumps({
-        "recommended_topic": "Pollution",
-        "reason": "Bob's personalised suggestion.",
-        "recommended_mission": "Clean Air Challenge",
-        "learning_style": "mission-based",
-    })
-))
-def test_bob_success_with_mission_based_style(mock_post):
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", return_value=json.dumps({
+    "recommended_topic": "Pollution",
+    "reason": "Bob's personalised suggestion.",
+    "recommended_mission": "Clean Air Challenge",
+    "learning_style": "mission-based",
+}))
+def test_bob_success_with_mission_based_style(mock_run_bob):
     """Bob can return learning_style=mission-based and it is preserved."""
     req = _make_request()
     result = get_personalized_recommendation(req)

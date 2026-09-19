@@ -227,7 +227,7 @@ def test_borderline_flag_from_bob_service_unit():
 
     # Ensure no API key so we get the deterministic fallback, not a real Bob call
     with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("BOB_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
         result = explain_verification(
             mission_type="water_conservation",
             detected_objects=["Water meter", "Low-flow faucet"],
@@ -245,7 +245,7 @@ def test_high_confidence_not_flagged_for_review():
     from bob_service import explain_verification
 
     with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("BOB_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
         result = explain_verification(
             mission_type="clean_campus",
             detected_objects=["Group activity", "Cleaning supplies", "Campus area"],
@@ -261,7 +261,7 @@ def test_fail_below_band_not_flagged_for_review():
     from bob_service import explain_verification
 
     with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("BOB_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
         result = explain_verification(
             mission_type="green_transport",
             detected_objects=["Bus"],
@@ -365,7 +365,7 @@ def test_bob_unavailable_fallback_preserves_verified():
     tree_plantation band is (0.88, 0.97) — always above the 0.70 threshold.
     """
     with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("BOB_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
         resp = client.post(
             "/verify-image",
             json={"image_url": "http://example.com/tree.jpg", "mission_type": "tree_plantation"},

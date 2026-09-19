@@ -21,8 +21,8 @@ import logging
 import os
 import re
 
-import requests
 from dotenv import load_dotenv
+from gemini_client import generate_text
 
 load_dotenv()
 
@@ -47,7 +47,7 @@ MISSION_MAP = {
 _UNABLE_RESPONSE_TEMPLATE = {
     "recommended_topic": "Unable to personalise right now",
     "reason": (
-        "IBM Bob is currently unavailable or returned an unexpected response. "
+        "Gemini is currently unavailable or returned an unexpected response. "
         "Please try again shortly."
     ),
     "recommended_mission": "Eco Explorer",
@@ -95,13 +95,10 @@ def get_personalized_recommendation(req) -> dict:
     raising an error.
     """
     # Step 1 — check credentials exist before attempting a network call
-    api_key = os.environ.get("BOB_API_KEY", "")
-    project_id = os.environ.get("WATSONX_PROJECT_ID", "")  # optional
-    url = os.environ.get("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
-    model_id = os.environ.get("WATSONX_MODEL_ID", _DEFAULT_MODEL)
+    api_key = os.environ.get("GEMINI_API_KEY", "")
 
     if not api_key:
-        logger.warning("BOB_API_KEY not set — returning deterministic fallback response.")
+        logger.warning("GEMINI_API_KEY not set — returning deterministic fallback response.")
         return _fallback(req)
 
     # Step 2 — build compact, student-scoped context
@@ -116,24 +113,17 @@ def get_personalized_recommendation(req) -> dict:
 
     # Step 3 — call IBM Bob
     try:
-        body: dict = {
-            "model_id": model_id,
-            "input": prompt,
-            "parameters": {"max_new_tokens": 300},
-        }
-        if project_id and project_id != "your_project_id_here":
-            body["project_id"] = project_id
-        response = requests.post(
-            f"{url}/ml/v1/text/generation?version=2023-05-29",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
+        schema = {
+            "type": "object",
+            "properties": {
+                "recommended_topic": {"type": "string"},
+                "reason": {"type": "string"},
+                "recommended_mission": {"type": "string"},
+                "learning_style": {"type": "string", "enum": sorted(_VALID_LEARNING_STYLES)},
             },
-            json=body,
-            timeout=30,
-        )
-        response.raise_for_status()
-        raw_text: str = response.json()["results"][0]["generated_text"]
+            "required": sorted(_REQUIRED_KEYS),
+        }
+        raw_text = generate_text(prompt, response_schema=schema)
     except Exception as exc:
         logger.warning("IBM Bob call failed: %s — returning deterministic fallback response.", exc)
         return _fallback(req)

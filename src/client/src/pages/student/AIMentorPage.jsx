@@ -5,6 +5,7 @@ import {
   ChevronRight, BrainCircuit, Send, Trash2, MessageSquare, Lightbulb, X, MessageCircle
 } from 'lucide-react';
 import { aiAPI } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const fallbackRecommendation = {
   weakTopics: [
@@ -133,6 +134,7 @@ const extractCountFromQuery = (query, defaultVal = 3) => {
 };
 
 export default function AIMentorPage() {
+  const navigate = useNavigate();
   const [rec, setRec] = useState(fallbackRecommendation);
   const [recLoading, setRecLoading] = useState(true);
   const [chatOpen, setChatOpen] = useState(false); // Floating Chatbot closed by default
@@ -390,6 +392,7 @@ export default function AIMentorPage() {
             <h3 className="text-lg font-semibold">{rec.recommendedLesson.title}</h3>
             <p className="text-sm text-muted-foreground mt-1">"{rec.recommendedLesson.reason}"</p>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              onClick={() => navigate(`/student/learn?topic=${encodeURIComponent(rec.recommendedLesson.title)}`)}
               className="mt-3 px-5 py-2.5 rounded-xl gradient-primary text-white text-sm font-semibold flex items-center gap-2">
               Start Recommended Lesson <ChevronRight className="w-4 h-4" />
             </motion.button>
@@ -408,6 +411,7 @@ export default function AIMentorPage() {
             <h3 className="text-lg font-semibold">{rec.recommendedMission.title}</h3>
             <p className="text-sm text-muted-foreground mt-1">"{rec.recommendedMission.reason}"</p>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              onClick={() => navigate(`/student/missions?mission=${encodeURIComponent(rec.recommendedMission.title)}`)}
               className="mt-3 px-5 py-2.5 rounded-xl bg-eco-green/10 text-eco-green text-sm font-semibold flex items-center gap-2 hover:bg-eco-green/20">
               Start Mission <ChevronRight className="w-4 h-4" />
             </motion.button>

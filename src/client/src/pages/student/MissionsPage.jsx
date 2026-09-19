@@ -503,6 +503,8 @@ export default function MissionsPage() {
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
   const [missions, setMissions] = useState(fallbackMissions);
+  const [openedMission, setOpenedMission] = useState(null);
+  const recommendedMission = searchParams.get('mission')?.trim().toLowerCase();
 
   useEffect(() => {
     let active = true;
@@ -534,6 +536,21 @@ export default function MissionsPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!recommendedMission || openedMission === recommendedMission) return;
+    const mission = missions.find((item) => item.title.toLowerCase() === recommendedMission);
+    if (!mission) return;
+
+    const missionToOpen = {
+      ...mission,
+      status: mission.status === 'not_started' ? 'in_progress' : mission.status,
+      progress: mission.status === 'not_started' ? Math.max(mission.progress, 1) : mission.progress,
+    };
+    setMissions((current) => current.map((item) => item.id === mission.id ? missionToOpen : item));
+    setSubmitMission(missionToOpen);
+    setOpenedMission(recommendedMission);
+  }, [missions, openedMission, recommendedMission]);
 
   const startMission = (id) => {
     setMissions(prev => prev.map(m =>

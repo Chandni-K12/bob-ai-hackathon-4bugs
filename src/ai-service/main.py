@@ -120,7 +120,7 @@ _MISSION_KEYWORDS: dict[str, list[str]] = {
 @app.post("/verify-image", response_model=VerifyImageResponse)
 def verify_image(req: VerifyImageRequest):
     """
-    Mission verification with image validation + IBM Bob explanation layer.
+    Mission verification with image validation + Gemini explanation layer.
 
     Step 0 — reject if no image_url was supplied at all.
     Step 1 — for data:image/ uploads, validate the MIME type.
@@ -309,7 +309,7 @@ def verify_image(req: VerifyImageRequest):
 @app.get("/class-insights/{class_id}", response_model=ClassInsightsResponse)
 def class_insights(class_id: str):
     """
-    Fetches aggregate class data from the Express server, calls IBM Bob, and
+    Fetches aggregate class data from the Express server, calls Gemini, and
     returns up to 3 prioritised structured actions for the teacher.
     The frontend sends only a class_id — never raw student data.
     data_status is "sufficient", "insufficient" (unknown class / sparse data),
@@ -321,7 +321,7 @@ def class_insights(class_id: str):
 @app.post("/personalize-learning", response_model=PersonalizeLearningResponse)
 def personalize_learning(req: PersonalizeLearningRequest):
     """
-    Calls IBM Bob (watsonx.ai) to generate personalised learning recommendations.
+    Calls Gemini to generate personalised learning recommendations.
     If Bob is unavailable or returns unparseable output, returns a clear
     'unable to personalise right now' response — never fabricates a recommendation.
     """
@@ -330,7 +330,7 @@ def personalize_learning(req: PersonalizeLearningRequest):
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     """
-    Calls IBM Bob to answer student questions in real-time.
+    Calls Gemini to answer student questions in real-time.
     """
     return ChatResponse(reply=get_chat_reply(req.message))
 

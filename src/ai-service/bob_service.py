@@ -24,8 +24,8 @@ import os
 import re
 from typing import Optional
 
-import requests
 from dotenv import load_dotenv
+from gemini_client import generate_text
 
 load_dotenv()
 
@@ -34,19 +34,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
-def _get_credentials() -> tuple[str, str, str, str]:
-    """Return (api_key, project_id, endpoint_url, model_id).
-
-    project_id is optional for Inference-scoped Bob keys (the scope is baked
-    into the key). If WATSONX_PROJECT_ID is set it is included in the request
-    body; otherwise the body is sent without it.
-    """
-    api_key = os.getenv("BOB_API_KEY", "")
-    project_id = os.getenv("WATSONX_PROJECT_ID", "")  # optional
-    url = os.getenv("BOB_API_ENDPOINT", "https://us-south.ml.cloud.ibm.com")
-    model_id = os.getenv("WATSONX_MODEL_ID", "ibm/granite-3-8b-instruct")
-    return (api_key, project_id, url, model_id)
 
 # Confidence band that triggers manual teacher review regardless of pass/fail
 _BORDERLINE_LOW = 0.70
@@ -114,31 +101,21 @@ Respond ONLY with valid JSON in this exact format:
 # Bob API call — direct HTTP POST to BOB_API_ENDPOINT
 # ---------------------------------------------------------------------------
 
-def _call_bob(prompt: str) -> dict:
+def _call_gemini(prompt: str) -> dict:
     """
     Call IBM Bob via direct HTTP POST to the inference endpoint.
     Returns a parsed dict with student_explanation and teacher_explanation.
     Raises on any error so the caller can fall back gracefully.
     """
-    api_key, project_id, url, model_id = _get_credentials()
-    body: dict = {
-        "model_id": model_id,
-        "input": prompt,
-        "parameters": {"max_new_tokens": 400},
-    }
-    if project_id and project_id != "your_project_id_here":
-        body["project_id"] = project_id
-    response = requests.post(
-        f"{url}/ml/v1/text/generation?version=2023-05-29",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
+    schema = {
+        "type": "object",
+        "properties": {
+            "student_explanation": {"type": "string"},
+            "teacher_explanation": {"type": "string"},
         },
-        json=body,
-        timeout=30,
-    )
-    response.raise_for_status()
-    raw: str = response.json()["results"][0]["generated_text"]
+        "required": ["student_explanation", "teacher_explanation"],
+    }
+    raw = generate_text(prompt, response_schema=schema)
 
     # Strip optional markdown code fence that some model versions add
     clean = raw.strip()
@@ -227,9 +204,9 @@ def explain_verification(
     """
     needs_review = _BORDERLINE_LOW <= confidence <= _BORDERLINE_HIGH
 
-    api_key, *_ = _get_credentials()
+    api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
-        logger.warning("BOB_API_KEY not set — using fallback explanations for verify-image")
+        logger.warning("GEMINI_API_KEY not set — using fallback explanations for verify-image")
         explanations = _fallback_explanations(
             mission_type, detected_objects, confidence, verified
         )
@@ -243,9 +220,9 @@ def explain_verification(
     )
 
     try:
-        bob_result = _call_bob(prompt)
-        student_exp = bob_result.get("student_explanation", "").strip()
-        teacher_exp = bob_result.get("teacher_explanation", "").strip()
+        gemini_result = _call_gemini(prompt)
+        student_exp = gemini_result.get("student_explanation", "").strip()
+        teacher_exp = gemini_result.get("teacher_explanation", "").strip()
 
         # Guard: if Bob returns empty strings, fall back
         if not student_exp or not teacher_exp:
