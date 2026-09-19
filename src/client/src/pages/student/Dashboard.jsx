@@ -43,6 +43,29 @@ function StreakWeek({ week, done }) {
   );
 }
 
+// Dynamic routing helper based on task type/title
+const getTaskRoute = (t) => {
+  const text = `${t.task || ''} ${t.envTopic || ''} ${t.syllabus || ''}`.toLowerCase();
+  if (text.includes('quiz') || text.includes('scenario')) {
+    return '/student/quizzes';
+  }
+  if (text.includes('crossword')) {
+    return '/student/crossword';
+  }
+  if (text.includes('learn') || text.includes('lesson')) {
+    return '/student/learn';
+  }
+  return '/student/missions';
+};
+
+const getTaskIcon = (t) => {
+  const route = getTaskRoute(t);
+  if (route === '/student/quizzes') return '🎯';
+  if (route === '/student/crossword') return '🧩';
+  if (route === '/student/learn') return '📖';
+  return '📋';
+};
+
 export default function StudentDashboard() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
@@ -120,35 +143,48 @@ export default function StudentDashboard() {
         </div>
       </motion.div>
 
-      {/* Teacher-Assigned Tasks — only shown when the server returns data */}
+      {/* Teacher-Assigned Tasks — dynamically routes to quiz, crossword, or mission page */}
       {assignedTasks.length > 0 && (
         <motion.div variants={item} className="glass rounded-xl p-5 border-l-4 border-eco-blue">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-eco-blue" /> Tasks Assigned by Teacher
             </h3>
-            <Link to="/student/missions" className="text-sm text-primary hover:underline flex items-center gap-1">
+            <Link to="/student/missions" className="text-sm text-primary hover:underline flex items-center gap-1 font-medium">
               View All <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="space-y-3">
-            {assignedTasks.map(t => (
-              <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-eco-blue/5 border border-eco-blue/10">
-                <div className="w-10 h-10 rounded-xl bg-eco-blue/10 flex items-center justify-center text-lg shrink-0">
-                  📋
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{t.task}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{t.envTopic}{t.deadline ? ` · Due ${new Date(t.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : ''}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs text-eco-green font-medium">+{t.points} pts</p>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full capitalize ${
-                    t.status === 'overdue' ? 'bg-destructive/10 text-destructive' : 'bg-eco-blue/10 text-eco-blue'
-                  }`}>{t.status.replace('_', ' ')}</span>
-                </div>
-              </div>
-            ))}
+            {assignedTasks.map(t => {
+              const targetRoute = getTaskRoute(t);
+              const taskIcon = getTaskIcon(t);
+              const linkUrl = `${targetRoute}?id=${encodeURIComponent(t.id)}&title=${encodeURIComponent(t.task || '')}`;
+              return (
+                <Link
+                  key={t.id}
+                  to={linkUrl}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-eco-blue/5 border border-eco-blue/10 hover:border-eco-blue/30 hover:bg-eco-blue/10 transition-all cursor-pointer group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-eco-blue/10 group-hover:scale-105 transition-transform flex items-center justify-center text-lg shrink-0">
+                    {taskIcon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate group-hover:text-eco-blue transition-colors">{t.task}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t.envTopic}{t.deadline ? ` · Due ${new Date(t.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : ''}</p>
+                  </div>
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                    <p className="text-xs text-eco-green font-medium">+{t.points} pts</p>
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full capitalize font-semibold shadow-xs flex items-center gap-1 group-hover:scale-105 transition-all ${
+                      t.status === 'overdue'
+                        ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                        : 'bg-eco-blue text-white hover:bg-eco-blue/90 shadow-sm'
+                    }`}>
+                      {t.status.replace('_', ' ')} <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </motion.div>
       )}
@@ -160,36 +196,46 @@ export default function StudentDashboard() {
             <h3 className="font-semibold flex items-center gap-2">
               <Target className="w-5 h-5 text-eco-green" /> Active Missions
             </h3>
-            <Link to="/student/missions" className="text-sm text-primary hover:underline flex items-center gap-1">
+            <Link to="/student/missions" className="text-sm text-primary hover:underline flex items-center gap-1 font-medium">
               View All <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="space-y-3">
-            {activeMissions.map(mission => (
-              <div key={mission.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition group">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: `${mission.color}20` }}>
-                  {mission.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{mission.title}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(mission.progress / mission.total) * 100}%` }}
-                        transition={{ duration: 1, delay: 0.5 }}
-                        className="h-full rounded-full"
-                        style={{ background: mission.color }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground">{mission.progress}/{mission.total}</span>
+            {activeMissions.map(mission => {
+              const linkUrl = `/student/missions?id=${encodeURIComponent(mission.id)}&title=${encodeURIComponent(mission.title || '')}`;
+              return (
+                <Link
+                  key={mission.id}
+                  to={linkUrl}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 hover:border-primary/20 transition-all border border-transparent group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl group-hover:scale-105 transition-transform" style={{ background: `${mission.color}20` }}>
+                    {mission.icon}
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-eco-green font-medium">+{mission.points}</p>
-                </div>
-              </div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{mission.title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(mission.progress / mission.total) * 100}%` }}
+                          transition={{ duration: 1, delay: 0.5 }}
+                          className="h-full rounded-full"
+                          style={{ background: mission.color }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{mission.progress}/{mission.total}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                    <p className="text-xs text-eco-green font-medium">+{mission.points} pts</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-eco-green/10 text-eco-green font-semibold flex items-center gap-0.5 group-hover:bg-eco-green group-hover:text-white transition-all">
+                      Continue <ChevronRight className="w-2.5 h-2.5" />
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -199,16 +245,20 @@ export default function StudentDashboard() {
             <h3 className="font-semibold flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-eco-blue" /> Learning Progress
             </h3>
-            <Link to="/student/learn" className="text-sm text-primary hover:underline flex items-center gap-1">
+            <Link to="/student/learn" className="text-sm text-primary hover:underline flex items-center gap-1 font-medium">
               View All <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="space-y-3">
             {recentTopics.map(topic => (
-              <div key={topic.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                <span className="text-xl">{topic.icon}</span>
+              <Link
+                key={topic.id}
+                to="/student/learn"
+                className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 hover:border-eco-blue/20 transition-all border border-transparent group cursor-pointer"
+              >
+                <span className="text-xl group-hover:scale-105 transition-transform">{topic.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{topic.name}</p>
+                  <p className="text-sm font-medium truncate group-hover:text-eco-blue transition-colors">{topic.name}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
                       <motion.div
@@ -222,7 +272,7 @@ export default function StudentDashboard() {
                     <span className="text-xs text-muted-foreground">{topic.progress}%</span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </motion.div>

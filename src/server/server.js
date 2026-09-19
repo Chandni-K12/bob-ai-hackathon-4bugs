@@ -206,6 +206,81 @@ app.get('/api/topics', async (req, res, next) => {
   }
 });
 
+// --- STUDENT TOPIC PROGRESS (DB PERSISTENCE) ---
+const studentProgressMemory = {}; // Fallback memory store: { [studentId]: { [topicId]: { completedLessons, progress } } }
+
+// Auto-initialize DB table if DB is connected
+if (db.hasDatabase) {
+  db.query(`
+    CREATE TABLE IF NOT EXISTS student_topic_progress (
+      student_id TEXT NOT NULL,
+      topic_id TEXT NOT NULL,
+      completed_lessons INTEGER DEFAULT 0,
+      progress INTEGER DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT now(),
+      PRIMARY KEY (student_id, topic_id)
+    );
+  `).catch(err => console.log('DB init student_topic_progress warning:', err.message));
+}
+
+app.get('/api/topics/progress/:studentId', async (req, res) => {
+  const { studentId } = req.params;
+  if (db.hasDatabase) {
+    try {
+      const result = await db.query(
+        'SELECT topic_id, completed_lessons, progress FROM student_topic_progress WHERE student_id = $1',
+        [studentId]
+      );
+      const progressObj = {};
+      result.rows.forEach(r => {
+        progressObj[r.topic_id] = {
+          completedLessons: Number(r.completed_lessons),
+          progress: Number(r.progress)
+        };
+      });
+      return res.json(progressObj);
+    } catch (err) {
+      console.log('DB get progress fallback:', err.message);
+    }
+  }
+  return res.json(studentProgressMemory[studentId] || {});
+});
+
+app.post('/api/topics/progress', async (req, res) => {
+  const { studentId, topicId, completedLessons, progress, pointsEarned = 0 } = req.body;
+  if (!studentId || !topicId) {
+    return res.status(400).json({ error: 'studentId and topicId are required' });
+  }
+
+  // Update memory store fallback
+  if (!studentProgressMemory[studentId]) studentProgressMemory[studentId] = {};
+  studentProgressMemory[studentId][topicId] = {
+    completedLessons: Number(completedLessons),
+    progress: Number(progress)
+  };
+
+  if (db.hasDatabase) {
+    try {
+      await db.query(
+        `INSERT INTO student_topic_progress (student_id, topic_id, completed_lessons, progress, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (student_id, topic_id)
+         DO UPDATE SET completed_lessons = EXCLUDED.completed_lessons, progress = EXCLUDED.progress, updated_at = NOW()`,
+        [studentId, topicId, completedLessons, progress]
+      );
+      if (pointsEarned > 0) {
+        await db.query('UPDATE users SET points = points + $1 WHERE id = $2', [pointsEarned, studentId]);
+      }
+      return res.json({ success: true, studentId, topicId, completedLessons, progress });
+    } catch (err) {
+      console.log('DB update progress fallback:', err.message);
+    }
+  }
+
+  return res.json({ success: true, studentId, topicId, completedLessons, progress });
+});
+
+
 app.get('/api/missions', async (req, res, next) => {
   if (!db.hasDatabase) return next();
   try {

@@ -106,3 +106,13 @@ CREATE TABLE IF NOT EXISTS class_analytics (
   topic_avg_scores JSONB DEFAULT '[]'::jsonb,
   participation_trend JSONB DEFAULT '[]'::jsonb
 );
+
+CREATE TABLE IF NOT EXISTS student_topic_progress (
+  student_id TEXT NOT NULL,
+  topic_id TEXT NOT NULL,
+  completed_lessons INTEGER DEFAULT 0,
+  progress INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (student_id, topic_id)
+);
+

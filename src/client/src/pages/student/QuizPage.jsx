@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockQuizzes } from '../../data/mockData';
 import { HelpCircle, CheckCircle2, XCircle, Zap, ChevronRight, RotateCcw, Trophy } from 'lucide-react';
 
 export default function QuizPage() {
+  const [searchParams] = useSearchParams();
+  const targetQuery = searchParams.get('title') || searchParams.get('id') || searchParams.get('topic');
+
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -12,6 +16,23 @@ export default function QuizPage() {
   const [totalPoints, setTotalPoints] = useState(0);
   const [finished, setFinished] = useState(false);
   const [answers, setAnswers] = useState([]);
+
+  // Auto-open targeted quiz if passed in URL
+  useEffect(() => {
+    if (targetQuery && !selectedQuiz) {
+      const qLower = targetQuery.toLowerCase();
+      const match = mockQuizzes.find(q =>
+        q.id === targetQuery ||
+        q.title.toLowerCase().includes(qLower) ||
+        q.topic.toLowerCase().includes(qLower) ||
+        qLower.includes(q.title.toLowerCase()) ||
+        qLower.includes(q.topic.toLowerCase())
+      );
+      if (match) {
+        setSelectedQuiz(match);
+      }
+    }
+  }, [targetQuery]);
 
   const handleSelect = (idx) => {
     if (answered) return;
