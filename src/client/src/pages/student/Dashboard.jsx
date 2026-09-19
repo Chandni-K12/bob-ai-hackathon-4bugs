@@ -91,6 +91,7 @@ export default function StudentDashboard() {
           </div>
         </div>
         <div className="sm:ml-auto flex items-center gap-2">
+          <div className="px-3 py-1.5 rounded-full bg-eco-amber/10 text-eco-amber text-sm font-medium flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5" /> Level {dashboard?.level ?? user?.level ?? 1}
           </div>
         </div>
