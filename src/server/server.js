@@ -592,10 +592,13 @@ app.post('/api/ai/verify-image', async (req, res) => {
   
   const topicKeywords = {
     tree_plantation: ["tree", "plant", "sapling", "garden", "leaf", "green", "nature", "soil", "flower", "forest", "seed", "sprout"],
+    biodiversity: ["biodiversity", "species", "bird", "animal", "habitat", "flora", "fauna", "wildlife", "nature", "ecosystem", "forest", "insect", "leaf"],
     waste_segregation: ["waste", "trash", "garbage", "recycle", "bin", "plastic", "paper", "segregat", "compost", "dustbin", "dry", "wet"],
     water_conservation: ["water", "tap", "faucet", "meter", "rain", "bucket", "conserve", "pipe", "leak", "drain", "tank"],
     clean_campus: ["clean", "campus", "school", "sweep", "mop", "broom", "group", "cleanup", "yard", "tidy"],
     green_transport: ["cycle", "bike", "walk", "path", "bus", "transit", "helmet", "pedal", "ride"],
+    energy_saving: ["energy", "electricity", "meter", "bulb", "led", "solar", "panel", "switch", "appliance", "audit", "power", "watt", "light", "fan"],
+    composting: ["compost", "vermi", "worm", "organic", "decompose", "pit", "kitchen waste", "earthworm", "humus", "mulch"],
   };
   const offTopicKeywords = ["car", "laptop", "pizza", "burger", "food", "cat", "dog", "shoe", "phone", "game", "screenshot", "movie", "tv", "furniture", "couch", "person", "selfie", "document", "random", "test_bad", "offtopic", "unrelated", "invalid", "wrong", "junk", "bad", "fake", "fail", "dummy", "unknown", "notebook", "notes", "page", "book", "homework", "assignment", "study", "text", "writing", "pen", "pencil", "scan", "sheet", "copy", "register", "classwork", "receipt", "invoice"];
 
@@ -609,10 +612,13 @@ app.post('/api/ai/verify-image', async (req, res) => {
 
   const standardPasses = {
     tree_plantation: { detected_objects: ["Tree sapling", "Soil", "Gardening tools"], confidence: 0.94 },
+    biodiversity: { detected_objects: ["Flora / fauna", "Natural habitat", "Species observation"], confidence: 0.90 },
     waste_segregation: { detected_objects: ["Paper → Dry Waste", "Plastic → Dry Waste", "Organic Waste → Wet Waste"], confidence: 0.91 },
     water_conservation: { detected_objects: ["Water meter", "Low-flow faucet", "Collection system"], confidence: 0.87 },
     clean_campus: { detected_objects: ["Group activity", "Cleaning supplies", "Campus area"], confidence: 0.96 },
     green_transport: { detected_objects: ["Bicycle", "Walking path"], confidence: 0.89 },
+    energy_saving: { detected_objects: ["Electricity meter", "LED lights", "Switched-off appliances"], confidence: 0.88 },
+    composting: { detected_objects: ["Compost pit", "Organic waste", "Earthworms / soil"], confidence: 0.90 },
   };
 
   const defaultMatch = standardPasses[mission_type] || { detected_objects: ["Environmental activity"], confidence: 0.90 };
