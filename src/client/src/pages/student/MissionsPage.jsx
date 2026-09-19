@@ -9,14 +9,59 @@ const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { st
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 const missionTypeMap = {
-  'm1': 'tree_plantation',       // Plant a Tree Sapling
-  'm2': 'waste_segregation',     // Waste Segregation Week
-  'm3': 'water_conservation',    // Water Audit at Home
-  'm4': 'clean_campus',          // Clean-up Drive
-  'm5': 'energy_saving',         // Energy Saving Challenge
-  'm6': 'composting',            // Composting Starter
-  'm7': 'green_transport',       // Bicycle to School Week
+  'm1': 'waste_segregation',   // Plastic-Free Week
+  'm2': 'water_conservation',  // Water Saver
+  'm3': 'waste_segregation',   // Waste Segregation Champion
+  'm4': 'green_transport',     // Green Transport
+  'm5': 'tree_plantation',     // Plant a Tree
+  'm6': 'biodiversity',        // Biodiversity Explorer
+  'm7': 'clean_campus',        // Clean Campus
+  'm8': 'energy_saving',       // Energy Audit
+  'm9': 'composting',          // Composting Hero
+  'm10': 'water_conservation', // Rain Water Harvesting
 };
+
+/**
+ * Derive a mission_type from the envTopic string of a teacher-assigned task.
+ * This makes AI verification dynamic instead of always falling back to a single default.
+ */
+const topicToMissionType = {
+  'water conservation': 'water_conservation',
+  'renewable energy':   'energy_saving',
+  'energy':             'energy_saving',
+  'waste management':   'waste_segregation',
+  'biodiversity':       'biodiversity',
+  'composting':         'composting',
+  'clean campus':       'clean_campus',
+  'green transport':    'green_transport',
+  'tree plantation':    'tree_plantation',
+};
+
+function deriveMissionType(mission) {
+  if (missionTypeMap[mission.id]) return missionTypeMap[mission.id];
+  if (mission.missionType) return mission.missionType;
+  if (mission.topic) {
+    const t = mission.topic.toLowerCase();
+    for (const [keyword, type] of Object.entries(topicToMissionType)) {
+      if (t.includes(keyword)) return type;
+    }
+  }
+  if (mission.title) {
+    const title = mission.title.toLowerCase();
+    for (const [keyword, type] of Object.entries(topicToMissionType)) {
+      if (title.includes(keyword)) return type;
+    }
+    if (title.includes('biodiversity') || title.includes('species') || title.includes('habitat')) return 'biodiversity';
+    if (title.includes('energy') || title.includes('audit')) return 'energy_saving';
+    if (title.includes('waste') || title.includes('segregat')) return 'waste_segregation';
+    if (title.includes('water')) return 'water_conservation';
+    if (title.includes('tree') || title.includes('plant')) return 'tree_plantation';
+    if (title.includes('clean')) return 'clean_campus';
+    if (title.includes('compost')) return 'composting';
+    if (title.includes('cycle') || title.includes('transport') || title.includes('bicycle')) return 'green_transport';
+  }
+  return 'tree_plantation';
+}
 
 /**
  * Read a File as a base64 data-URL string.
@@ -100,6 +145,12 @@ const MISSION_VERIFY_RULES = {
     detected: ['Tree / plant foliage', 'Soil / earth tones', 'Outdoor environment'],
     failMsg: 'The image does not appear to show trees, plants, or soil. Please upload a photo of your tree plantation activity.',
   },
+  biodiversity: {
+    label: 'biodiversity activity (flora, fauna, habitat, species spotting)',
+    check: (c) => c.isNatureScene || c.greenRatio > 0.08 || (c.outdoorRatio > 0.12 && !c.isScreenshot),
+    detected: ['Flora / fauna', 'Natural habitat', 'Outdoor biodiversity scene'],
+    failMsg: 'The image does not appear to show biodiversity evidence. Please upload a photo of plants, animals, or natural habitat observations.',
+  },
   waste_segregation: {
     label: 'waste segregation (bins, sorted waste, recycling)',
     /** Should not be a dark screenshot; should have varied colors indicating physical objects */
@@ -162,7 +213,7 @@ function VerificationModal({ mission, onClose, onVerified }) {
   const handleUpload = async () => {
     if (!file) return;
     setStep(1);
-    const missionType = missionTypeMap[mission.id] || 'tree_plantation';
+    const missionType = deriveMissionType(mission);
     const rules = MISSION_VERIFY_RULES[missionType] || MISSION_VERIFY_RULES.tree_plantation;
 
     try {
@@ -252,7 +303,7 @@ function VerificationModal({ mission, onClose, onVerified }) {
                   <Shield className="w-3.5 h-3.5" /> What to upload
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {`Upload a clear photo showing ${(MISSION_VERIFY_RULES[missionTypeMap[mission.id] || 'tree_plantation'] || MISSION_VERIFY_RULES.tree_plantation).label}.`}
+                  {`Upload a clear photo showing ${(MISSION_VERIFY_RULES[deriveMissionType(mission)] || MISSION_VERIFY_RULES.tree_plantation).label}.`}
                 </p>
               </div>
 
