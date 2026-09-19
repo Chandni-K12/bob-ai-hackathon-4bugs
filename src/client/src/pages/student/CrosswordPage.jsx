@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Puzzle, Clock, Award, Star, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { mockCrosswordPuzzles } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
 
 function buildGrid(crosswordData) {
   const grid = Array(crosswordData.size).fill(null).map(() => Array(crosswordData.size).fill(null));
@@ -20,6 +21,7 @@ function buildGrid(crosswordData) {
 }
 
 export default function CrosswordPage() {
+  const { addPoints } = useAuth();
   const topics = [...new Set(mockCrosswordPuzzles.map(puzzle => puzzle.topic))];
   const levels = ['Beginner', 'Intermediate', 'Advanced'];
   const [selectedTopic, setSelectedTopic] = useState(topics[0]);
@@ -101,6 +103,10 @@ export default function CrosswordPage() {
     setEarnedPoints(totalPoints);
     setIsRevealed(false);
     setCompleted(true);
+    // Credit points to user account
+    if (totalPoints > 0 && addPoints) {
+      addPoints(totalPoints, 'crossword');
+    }
   };
 
   const revealAll = () => {

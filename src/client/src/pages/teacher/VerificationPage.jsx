@@ -17,14 +17,16 @@ export default function VerificationPage() {
       .catch(() => {});
   }, []);
 
-  const handleApprove = (id) => {
+  const handleApprove = async (id) => {
     setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'approved', status: 'approved', pointsAwarded: 100 } : s));
     setViewSub(null);
+    try { await submissionsAPI.approve(id); } catch {}
   };
 
-  const handleReject = (id) => {
+  const handleReject = async (id) => {
     setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'rejected', status: 'rejected' } : s));
     setViewSub(null);
+    try { await submissionsAPI.reject(id); } catch {}
   };
 
   const filtered = submissions.filter(s => {

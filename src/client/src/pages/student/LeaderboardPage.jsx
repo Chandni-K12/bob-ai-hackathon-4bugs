@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockClassLeaderboard, mockSchoolLeaderboard, mockCompetitions, mockGreenScore } from '../../data/mockData';
 import { useAuth } from '../../context/AuthContext';
+import { leaderboardsAPI } from '../../services/api';
 import { Trophy, Medal, TrendingUp, TrendingDown, Minus, Crown, Star, Users } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
@@ -52,11 +53,35 @@ export default function LeaderboardPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState('class');
   const [liveUpdate, setLiveUpdate] = useState(null);
+  const [classLeaderboard, setClassLeaderboard] = useState(mockClassLeaderboard);
+
+  // Fetch live leaderboard from API
+  useEffect(() => {
+    const classId = user?.classId || 'c1';
+    leaderboardsAPI.getClass(classId)
+      .then(res => {
+        if (res.data && res.data.length > 0) {
+          let lb = res.data.map((entry, i) => ({
+            ...entry,
+            rank: entry.rank || i + 1,
+            avatar: '🌿',
+          }));
+          // Insert current user if not in the list
+          if (user && !lb.find(e => e.name === user.name)) {
+            lb.push({ rank: lb.length + 1, name: user.name, points: user.points ?? 0, avatar: user.avatar || '🌿' });
+            lb.sort((a, b) => b.points - a.points);
+            lb = lb.map((e, i) => ({ ...e, rank: i + 1 }));
+          }
+          setClassLeaderboard(lb);
+        }
+      })
+      .catch(() => {}); // fallback to mock data
+  }, [user]);
 
   // Simulate live leaderboard update
   useEffect(() => {
     const timer = setTimeout(() => {
-      setLiveUpdate({ name: 'Ananya', from: 8, to: 7 });
+      setLiveUpdate({ name: user?.name || 'You', from: 8, to: 7 });
       setTimeout(() => setLiveUpdate(null), 4000);
     }, 3000);
     return () => clearTimeout(timer);
@@ -127,7 +152,7 @@ export default function LeaderboardPage() {
 
       {/* Leaderboard List */}
       <motion.div variants={container} className="space-y-2">
-        {tab === 'class' && mockClassLeaderboard.sort((a, b) => a.rank - b.rank).map((entry, i) => (
+        {tab === 'class' && classLeaderboard.sort((a, b) => a.rank - b.rank).map((entry, i) => (
           <LeaderboardEntry key={entry.name} entry={entry} index={i} isCurrentUser={entry.name === user?.name} />
         ))}
         {tab === 'school' && mockSchoolLeaderboard.map((entry, i) => (

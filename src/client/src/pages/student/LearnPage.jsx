@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { mockTopics } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Clock, Award, ChevronRight, Search, Filter } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function LearnPage() {
+  const { addPoints } = useAuth();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -165,9 +167,14 @@ export default function LearnPage() {
                         completed
                           ? 'bg-eco-green border-emerald-600 text-white border-b-8 active:translate-y-1 active:border-b-4'
                           : active
-                          ? 'bg-eco-blue border-sky-600 text-white border-b-8 ring-4 ring-sky-500/20 active:translate-y-1 active:border-b-4 animate-pulse'
+                          ? 'bg-eco-blue border-sky-600 text-white border-b-8 ring-4 ring-sky-500/20 active:translate-y-1 active:border-b-4 animate-pulse cursor-pointer'
                           : 'bg-slate-800 border-slate-900 text-slate-500 cursor-not-allowed border-b-8'
                       }`}
+                      onClick={() => {
+                        if (active && addPoints) {
+                          addPoints(20, 'lesson');
+                        }
+                      }}
                     >
                       {completed ? '✓' : locked ? '🔒' : i + 1}
                     </div>

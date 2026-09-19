@@ -2,7 +2,27 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('./db');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'gengreen_secret_key_2026';
+
+function generateToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function getUserIdFromToken(req) {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth) return null;
+    const token = auth.replace('Bearer ', '');
+    // Support legacy mock tokens
+    if (token.startsWith('mock_jwt_')) return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded.id;
+  } catch { return null; }
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +39,8 @@ const mapUserRow = (row) => row && ({
   role: row.role,
   schoolId: row.school_id,
   classId: row.class_id,
+  city: row.city,
+  institutionType: row.institution_type,
   points: row.points,
   streak: row.streak,
   level: row.level,
@@ -96,17 +118,107 @@ const users = [
 
 // --- DATABASE ROUTES ---
 // These handlers run first. If the database is unavailable, the mock routes below answer.
+
+// Registration endpoint (DB)
+app.post('/api/auth/register', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const { name, email, password, role, schoolId, classId, city, institutionType } = req.body;
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ error: 'Name, email, password, and role are required' });
+    }
+    if (!['student', 'teacher', 'organizer'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be student, teacher, or organizer' });
+    }
+    // Check if email already exists
+    const existing = await db.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const id = role.charAt(0) + '_' + Date.now();
+
+    // Safely check foreign keys so custom school names or classes don't violate constraints
+    let safeSchoolId = null;
+    if (schoolId) {
+      try {
+        const sCheck = await db.query('SELECT id FROM schools WHERE id = $1', [schoolId]);
+        if (sCheck.rows.length > 0) {
+          safeSchoolId = schoolId;
+        } else {
+          await db.query('INSERT INTO schools (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING', [schoolId, schoolId]);
+          safeSchoolId = schoolId;
+        }
+      } catch {
+        safeSchoolId = null;
+      }
+    }
+
+    let safeClassId = null;
+    if (classId) {
+      try {
+        const cCheck = await db.query('SELECT id FROM classes WHERE id = $1', [classId]);
+        if (cCheck.rows.length > 0) {
+          safeClassId = classId;
+        } else {
+          await db.query('INSERT INTO classes (id, name, school_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING', [classId, classId, safeSchoolId]);
+          safeClassId = classId;
+        }
+      } catch {
+        safeClassId = null;
+      }
+    }
+
+    const result = await db.query(
+      'INSERT INTO users (id, name, email, password, role, school_id, class_id, city, institution_type, points, streak, level, badges) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 1, 0) RETURNING *',
+      [id, name, email, hashedPassword, role, safeSchoolId, safeClassId, city || null, institutionType || null]
+    );
+    const user = mapUserRow(result.rows[0]);
+    const token = generateToken(user);
+    return res.status(201).json({ token, user });
+  } catch (err) {
+    console.log('DB register fallback:', err.message);
+    return next();
+  }
+});
+
+// Login endpoint (DB)
 app.post('/api/auth/login', async (req, res, next) => {
   if (!db.hasDatabase) return next();
   try {
-    const { email, role } = req.body;
-    const result = await db.query(
-      'SELECT * FROM users WHERE email = $1 AND role = $2 LIMIT 1',
-      [email, role]
-    );
-    const user = mapUserRow(result.rows[0]);
-    if (!user) return next();
-    return res.json({ token: 'mock_jwt_' + Date.now(), user });
+    const { email, password, role } = req.body;
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    // Check if account exists with this email
+    const anyUserRes = await db.query('SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1', [cleanEmail]);
+    if (anyUserRes.rows.length === 0) {
+      return res.status(401).json({ error: 'No account found with this email. Please check your credentials or register.' });
+    }
+
+    const foundRow = anyUserRes.rows[0];
+    if (foundRow.role !== role) {
+      const roleName = foundRow.role.charAt(0).toUpperCase() + foundRow.role.slice(1);
+      return res.status(401).json({
+        error: `This email is registered as a ${roleName}. Please switch to the ${roleName} role to sign in.`
+      });
+    }
+
+    // Verify password — support bcrypt hashed, plaintext, or seed mock passwords
+    const isMock = foundRow.password && foundRow.password.startsWith('$2b$10$mock');
+    let isValid = false;
+    if (isMock) {
+      isValid = ['password123', 'demo123', 'password'].includes(password);
+    } else {
+      isValid = await bcrypt.compare(password, foundRow.password) || foundRow.password === password;
+    }
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+    }
+
+    const user = mapUserRow(foundRow);
+    const token = generateToken(user);
+    return res.json({ token, user });
   } catch (err) {
     console.log('DB auth fallback:', err.message);
     return next();
@@ -153,10 +265,32 @@ app.get('/api/dashboard/student/:studentId', async (req, res) => {
 app.get('/api/auth/profile', async (req, res, next) => {
   if (!db.hasDatabase) return next();
   try {
-    const result = await db.query("SELECT * FROM users WHERE role = 'student' ORDER BY id LIMIT 1");
+    const userId = getUserIdFromToken(req);
+    if (!userId) return next();
+    const result = await db.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [userId]);
+    if (!result.rows[0]) return next();
     return res.json(mapUserRow(result.rows[0]));
   } catch (err) {
     console.log('DB profile fallback:', err.message);
+    return next();
+  }
+});
+
+// Points update endpoint (DB)
+app.post('/api/users/:id/points', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const { points, activity } = req.body;
+    const amount = Number(points) || 0;
+    if (amount <= 0) return res.status(400).json({ error: 'Points must be positive' });
+    const result = await db.query(
+      'UPDATE users SET points = points + $1, level = GREATEST(1, (points + $1) / 200 + 1) WHERE id = $2 RETURNING *',
+      [amount, req.params.id]
+    );
+    if (!result.rows[0]) return next();
+    return res.json(mapUserRow(result.rows[0]));
+  } catch (err) {
+    console.log('DB points update fallback:', err.message);
     return next();
   }
 });
@@ -379,22 +513,82 @@ app.get('/api/analytics/class/:id', async (req, res, next) => {
   }
 });
 
-// --- AUTH ROUTES ---
-app.post('/api/auth/login', (req, res) => {
-  const { email, role } = req.body;
-  const user = users.find(u => u.email === email && u.role === role);
-  if (!user) {
-    const defaultUser = users.find(u => u.role === role);
-    if (defaultUser) {
-      return res.json({ token: 'mock_jwt_' + Date.now(), user: { ...defaultUser, email } });
-    }
-    return res.status(401).json({ error: 'Invalid credentials' });
+// --- AUTH ROUTES (in-memory fallback) ---
+app.post('/api/auth/register', (req, res) => {
+  const { name, email, password, role, schoolId, classId, city, institutionType } = req.body;
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ error: 'Name, email, password, and role are required' });
   }
-  res.json({ token: 'mock_jwt_' + Date.now(), user });
+  if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+    return res.status(409).json({ error: 'Email already registered' });
+  }
+  const newUser = {
+    id: role.charAt(0) + '_' + Date.now(),
+    name,
+    email,
+    password: bcrypt.hashSync(password, 10),
+    role,
+    schoolId: schoolId || null,
+    classId: classId || null,
+    city: city || null,
+    institutionType: institutionType || null,
+    points: 0,
+    streak: 0,
+    level: 1,
+    badges: 0,
+  };
+  users.push(newUser);
+  res.status(201).json({ token: generateToken(newUser), user: newUser });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password, role } = req.body;
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  const existingUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+  if (!existingUser) {
+    return res.status(401).json({ error: 'No account found with this email. Please check your credentials or register.' });
+  }
+
+  if (existingUser.role !== role) {
+    const roleName = existingUser.role.charAt(0).toUpperCase() + existingUser.role.slice(1);
+    return res.status(401).json({
+      error: `This email is registered as a ${roleName}. Please switch to the ${roleName} role to sign in.`
+    });
+  }
+
+  const user = existingUser;
+  if (user.password) {
+    const isMock = user.password.startsWith('$2b$10$mock');
+    let isMatch = false;
+    if (isMock) {
+      isMatch = ['password123', 'demo123', 'password'].includes(password);
+    } else {
+      isMatch = bcrypt.compareSync(password, user.password) || user.password === password;
+    }
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+    }
+  }
+
+  res.json({ token: generateToken(user), user });
 });
 
 app.get('/api/auth/profile', (req, res) => {
-  res.json(users[0]);
+  const userId = getUserIdFromToken(req);
+  const user = userId ? users.find(u => u.id === userId) : users[0];
+  res.json(user || users[0]);
+});
+
+// --- POINTS (in-memory fallback) ---
+app.post('/api/users/:id/points', (req, res) => {
+  const { points } = req.body;
+  const amount = Number(points) || 0;
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.points = (user.points || 0) + amount;
+  user.level = Math.floor(user.points / 200) + 1;
+  res.json(user);
 });
 
 // --- USERS ---
@@ -953,7 +1147,7 @@ try {
 // When run directly (local dev), start the HTTP server.
 // When require()'d by the Vercel serverless entry point, just export the app.
 if (require.main === module) {
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 5001;
   server.listen(PORT, () => {
     console.log(`🌿 GenGreen API running on port ${PORT}`);
     console.log(`   Routes: /api/auth, /api/users, /api/schools, /api/topics, /api/missions, /api/submissions, /api/leaderboards, /api/competitions, /api/badges, /api/analytics`);

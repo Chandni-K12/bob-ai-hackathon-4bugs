@@ -17,7 +17,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const isAuthRequest = err.config?.url?.includes('/auth/login') || err.config?.url?.includes('/auth/register');
+    if (err.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('eco_token');
       localStorage.removeItem('eco_user');
       window.location.href = '/login';
@@ -38,6 +39,7 @@ export const usersAPI = {
   getAll: (params) => api.get('/users', { params }),
   getById: (id) => api.get(`/users/${id}`),
   update: (id, data) => api.put(`/users/${id}`, data),
+  addPoints: (id, data) => api.post(`/users/${id}/points`, data),
 };
 
 // Schools

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockQuizzes } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
 import { HelpCircle, CheckCircle2, XCircle, Zap, ChevronRight, RotateCcw, Trophy } from 'lucide-react';
 
 export default function QuizPage() {
+  const { addPoints } = useAuth();
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -37,6 +39,19 @@ export default function QuizPage() {
       setAnswered(false);
     } else {
       setFinished(true);
+      // Credit earned points to user account
+      const earnedTotal = answers.reduce((acc, a) => {
+        if (a.correct) {
+          const q = selectedQuiz.questions.find(qq => qq.id === a.questionId);
+          return acc + (q?.points || 0);
+        }
+        return acc;
+      }, 0) + (correct ? (selectedQuiz.questions[currentQ]?.points || 0) : 0);
+      // Use current totalPoints + final question if correct
+      const finalPoints = totalPoints + (correct ? (selectedQuiz.questions[currentQ]?.points || 0) : 0);
+      if (finalPoints > 0 && addPoints) {
+        addPoints(finalPoints, 'quiz');
+      }
     }
   };
 

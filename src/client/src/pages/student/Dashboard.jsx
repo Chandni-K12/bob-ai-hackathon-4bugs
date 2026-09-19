@@ -91,18 +91,17 @@ export default function StudentDashboard() {
           </div>
         </div>
         <div className="sm:ml-auto flex items-center gap-2">
-          <div className="px-3 py-1.5 rounded-full bg-eco-amber/10 text-eco-amber text-sm font-medium flex items-center gap-1.5">
-            <Star className="w-3.5 h-3.5" /> Level {dashboard?.level ?? 0}
+            <Star className="w-3.5 h-3.5" /> Level {dashboard?.level ?? user?.level ?? 1}
           </div>
         </div>
       </motion.div>
 
       {/* Metrics Grid */}
       <motion.div variants={container} className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <MetricCard emoji="⚡" label="Eco Points" value={formatNumber(dashboard?.points ?? 0)} sub="+180 this week" color="text-eco-green" gradient="bg-eco-green" />
-        <MetricCard emoji="🔥" label="Weekly Streak" value={`${dashboard?.streak ?? 0} Weeks`} sub="Streak is active!" color="text-eco-orange" gradient="bg-eco-orange" />
-        <MetricCard emoji="🏆" label="Class Rank" value={`#${dashboard?.classRank ?? 7}`} sub="↑ 1 position" color="text-eco-blue" gradient="bg-eco-blue" />
-        <MetricCard emoji="🏫" label="School Rank" value={`#${dashboard?.schoolRank ?? 24}`} sub="↑ 3 positions" color="text-eco-purple" gradient="bg-purple-500" />
+        <MetricCard emoji="⚡" label="Eco Points" value={formatNumber(dashboard?.points ?? user?.points ?? 0)} sub={(dashboard?.points ?? user?.points) > 0 ? '+180 this week' : 'Start earning!'} color="text-eco-green" gradient="bg-eco-green" />
+        <MetricCard emoji="🔥" label="Weekly Streak" value={`${dashboard?.streak ?? user?.streak ?? 0} Weeks`} sub={(dashboard?.streak ?? user?.streak) > 0 ? 'Streak is active!' : 'Complete activities!'} color="text-eco-orange" gradient="bg-eco-orange" />
+        <MetricCard emoji="🏆" label="Class Rank" value={(dashboard?.classRank ?? user?.classRank) ? `#${dashboard?.classRank ?? user?.classRank}` : 'Unranked'} sub={(dashboard?.classRank ?? user?.classRank) ? '↑ 1 position' : 'Earn points to rank'} color="text-eco-blue" gradient="bg-eco-blue" />
+        <MetricCard emoji="🏫" label="School Rank" value={(dashboard?.schoolRank ?? user?.schoolRank) ? `#${dashboard?.schoolRank ?? user?.schoolRank}` : 'Unranked'} sub={(dashboard?.schoolRank ?? user?.schoolRank) ? '↑ 3 positions' : 'Keep going!'} color="text-eco-purple" gradient="bg-purple-500" />
       </motion.div>
 
       {/* Streak Visual */}

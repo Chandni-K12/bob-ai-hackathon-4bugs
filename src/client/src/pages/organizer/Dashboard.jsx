@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { mockOrganizerMetrics, mockSchoolLeaderboard, mockCompetitions, mockMonthlyProgress } from '../../data/mockData';
+import { analyticsAPI } from '../../services/api';
 import { formatNumber } from '../../lib/utils';
 import { Building, Users, GraduationCap, Trophy, Target, Zap, Shield, TrendingUp } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -20,7 +22,24 @@ function MetricCard({ icon: Icon, label, value, gradient }) {
 }
 
 export default function OrganizerDashboard() {
-  const m = mockOrganizerMetrics;
+  const [m, setM] = useState(mockOrganizerMetrics);
+
+  // Fetch real platform analytics from API
+  useEffect(() => {
+    analyticsAPI.getPlatform()
+      .then(res => {
+        if (res.data) {
+          setM(prev => ({
+            ...prev,
+            totalSchools: res.data.totalSchools ?? prev.totalSchools,
+            totalStudents: res.data.totalStudents ?? prev.totalStudents,
+            totalTeachers: res.data.totalTeachers ?? prev.totalTeachers,
+            activeCompetitions: res.data.activeCompetitions ?? prev.activeCompetitions,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">

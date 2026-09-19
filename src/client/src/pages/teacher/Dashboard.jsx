@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { mockTeacherMetrics, mockStudentPerformance, mockTopicPerformance, mockWeeklyActivity } from '../../data/mockData';
+import { submissionsAPI } from '../../services/api';
 import { formatNumber } from '../../lib/utils';
 import { Users, UserCheck, TrendingUp, ClipboardCheck, ClipboardList, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
@@ -22,7 +24,21 @@ function StatCard({ icon: Icon, label, value, color }) {
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
-  const m = mockTeacherMetrics;
+  const [metrics, setMetrics] = useState(mockTeacherMetrics);
+
+  // Fetch real pending review count
+  useEffect(() => {
+    submissionsAPI.getAll()
+      .then(res => {
+        if (res.data?.length) {
+          const pending = res.data.filter(s => s.status === 'awaiting_approval').length;
+          setMetrics(prev => ({ ...prev, pendingReviews: pending }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const m = metrics;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">

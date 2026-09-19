@@ -1,15 +1,44 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockBadges } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
 import { Award, Lock, X, Sparkles } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, scale: 0.8 }, show: { opacity: 1, scale: 1 } };
 
+// Dynamic badge unlock thresholds based on points
+const BADGE_THRESHOLDS = {
+  b1: 1,      // Eco Starter — any points
+  b2: 100,    // Waste Warrior
+  b3: 200,    // Water Guardian
+  b4: 400,    // Green Champion
+  b5: 600,    // Climate Hero
+  b6: 800,    // 7-Week Streak
+  b7: 3000,   // Eco Master
+  b8: 500,    // Quiz Champion
+  b9: 1000,   // Mission Master
+  b10: 300,   // Team Player
+  b11: 700,   // Biodiversity Scout
+  b12: 900,   // Energy Saver
+  b13: 1500,  // Pollution Fighter
+  b14: 2500,  // Eco Leader
+};
+
 export default function BadgesPage() {
+  const { user } = useAuth();
   const [selectedBadge, setSelectedBadge] = useState(null);
-  const unlocked = mockBadges.filter(b => b.unlocked);
-  const locked = mockBadges.filter(b => !b.unlocked);
+  const userPoints = user?.points ?? 0;
+
+  // Dynamically compute which badges are unlocked based on user's points
+  const badges = mockBadges.map(b => ({
+    ...b,
+    unlocked: userPoints >= (BADGE_THRESHOLDS[b.id] ?? Infinity),
+    unlockedDate: userPoints >= (BADGE_THRESHOLDS[b.id] ?? Infinity) ? (b.unlockedDate || new Date().toISOString()) : null,
+  }));
+
+  const unlocked = badges.filter(b => b.unlocked);
+  const locked = badges.filter(b => !b.unlocked);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-4xl mx-auto">
@@ -18,7 +47,7 @@ export default function BadgesPage() {
           <Award className="w-6 h-6 text-eco-gold" /> Badges & Achievements
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {unlocked.length} of {mockBadges.length} badges unlocked
+          {unlocked.length} of {badges.length} badges unlocked
         </p>
       </motion.div>
 

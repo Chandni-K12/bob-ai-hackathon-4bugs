@@ -36,10 +36,10 @@ export default function ProfilePage() {
             <p className="text-muted-foreground text-sm">Class {user?.className} • {user?.schoolName}</p>
             <div className="flex items-center gap-3 mt-2 justify-center sm:justify-start">
               <span className="px-3 py-1 rounded-full bg-eco-amber/10 text-eco-amber text-sm font-medium flex items-center gap-1">
-                <Star className="w-3.5 h-3.5" /> Level {user?.level || 12}
+                <Star className="w-3.5 h-3.5" /> Level {user?.level ?? 1}
               </span>
               <span className="px-3 py-1 rounded-full bg-eco-green/10 text-eco-green text-sm font-medium">
-                {formatNumber(user?.points || 2450)} Eco Points
+                {formatNumber(user?.points ?? 0)} Eco Points
               </span>
             </div>
           </div>
@@ -49,14 +49,14 @@ export default function ProfilePage() {
       {/* Stats Grid */}
       <motion.div variants={container} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: Trophy, label: 'Class Rank', value: `#${user?.classRank || 7}`, color: 'text-eco-blue' },
-          { icon: School, label: 'School Rank', value: `#${user?.schoolRank || 24}`, color: 'text-eco-purple' },
-          { icon: Flame, label: 'Streak', value: `${user?.streak || 1} weeks`, color: 'text-eco-orange' },
-          { icon: Award, label: 'Badges', value: user?.badges || 12, color: 'text-eco-gold' },
-          { icon: Target, label: 'Missions', value: user?.completedMissions || 28, color: 'text-eco-green' },
-          { icon: BarChart3, label: 'Quiz Accuracy', value: `${user?.quizAccuracy || 84}%`, color: 'text-eco-teal' },
-          { icon: BookOpen, label: 'Learning', value: `${user?.learningProgress || 76}%`, color: 'text-eco-blue' },
-          { icon: Zap, label: 'Eco Points', value: formatNumber(user?.points || 2450), color: 'text-eco-green' },
+          { icon: Trophy, label: 'Class Rank', value: user?.classRank ? `#${user.classRank}` : '-', color: 'text-eco-blue' },
+          { icon: School, label: 'School Rank', value: user?.schoolRank ? `#${user.schoolRank}` : '-', color: 'text-eco-purple' },
+          { icon: Flame, label: 'Streak', value: `${user?.streak ?? 0} weeks`, color: 'text-eco-orange' },
+          { icon: Award, label: 'Badges', value: user?.badges ?? 0, color: 'text-eco-gold' },
+          { icon: Target, label: 'Missions', value: user?.completedMissions ?? 0, color: 'text-eco-green' },
+          { icon: BarChart3, label: 'Quiz Accuracy', value: `${user?.quizAccuracy ?? 0}%`, color: 'text-eco-teal' },
+          { icon: BookOpen, label: 'Learning', value: `${user?.learningProgress ?? 0}%`, color: 'text-eco-blue' },
+          { icon: Zap, label: 'Eco Points', value: formatNumber(user?.points ?? 0), color: 'text-eco-green' },
         ].map((stat, i) => (
           <motion.div key={stat.label} variants={item} className="glass rounded-xl p-3 text-center">
             <stat.icon className={`w-5 h-5 mx-auto mb-1 ${stat.color}`} />
