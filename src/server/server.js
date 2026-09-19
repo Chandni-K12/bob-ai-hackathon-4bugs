@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const db = require('./db');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,12 +11,336 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+const mapUserRow = (row) => row && ({
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  password: row.password,
+  role: row.role,
+  schoolId: row.school_id,
+  classId: row.class_id,
+  points: row.points,
+  streak: row.streak,
+  level: row.level,
+  badges: row.badges,
+});
+
+const mapSchoolRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  location: row.location,
+  state: row.state,
+  students: row.students,
+  greenScore: Number(row.green_score),
+});
+
+const mapMissionRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  topic: row.topic,
+  difficulty: row.difficulty,
+  points: row.points,
+  verificationRequired: row.verification_required,
+});
+
+const mapSubmissionRow = (row) => ({
+  id: row.id,
+  studentId: row.student_id,
+  studentName: row.student_name,
+  missionId: row.mission_id,
+  missionTitle: row.mission_title,
+  imageUrl: row.image_url,
+  location: row.location,
+  timestamp: row.timestamp,
+  aiConfidence: row.ai_confidence,
+  aiVerified: row.ai_verified,
+  teacherApproval: row.teacher_approval,
+  status: row.status,
+  pointsAwarded: row.points_awarded,
+  detectedItems: row.detected_items || [],
+});
+
+const mapTaskRow = (row) => ({
+  id: row.id,
+  classId: row.class_id,
+  syllabus: row.syllabus,
+  envTopic: row.env_topic,
+  task: row.task,
+  deadline: row.deadline,
+  points: row.points,
+  difficulty: row.difficulty,
+  status: row.status,
+  students: row.students,
+  completed: row.completed,
+});
+
+const getPendingSubmissionCount = async () => {
+  if (!db.hasDatabase) {
+    return submissions.filter(s => s.status === 'awaiting_approval').length;
+  }
+  try {
+    const result = await db.query("SELECT COUNT(*)::int AS count FROM submissions WHERE status = 'awaiting_approval'");
+    return result.rows[0].count;
+  } catch (err) {
+    console.log('DB pending submission fallback:', err.message);
+    return submissions.filter(s => s.status === 'awaiting_approval').length;
+  }
+};
+
 // --- MOCK DATA ---
 const users = [
   { id: 'u1', name: 'Ananya Sharma', email: 'ananya@student.eco', password: '$2b$10$mockhashedpassword', role: 'student', schoolId: 's1', classId: 'c1', points: 2450, streak: 5, level: 12, badges: 12 },
   { id: 't1', name: 'Dr. Meera Reddy', email: 'meera@teacher.eco', password: '$2b$10$mockhashedpassword', role: 'teacher', schoolId: 's1', classId: 'c1' },
   { id: 'o1', name: 'Mrs. Lakshmi Menon', email: 'lakshmi@organizer.eco', password: '$2b$10$mockhashedpassword', role: 'organizer' },
 ];
+
+// --- DATABASE ROUTES ---
+// These handlers run first. If the database is unavailable, the mock routes below answer.
+app.post('/api/auth/login', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const { email, role } = req.body;
+    const result = await db.query(
+      'SELECT * FROM users WHERE email = $1 AND role = $2 LIMIT 1',
+      [email, role]
+    );
+    const user = mapUserRow(result.rows[0]);
+    if (!user) return next();
+    return res.json({ token: 'mock_jwt_' + Date.now(), user });
+  } catch (err) {
+    console.log('DB auth fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/auth/profile', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query("SELECT * FROM users WHERE role = 'student' ORDER BY id LIMIT 1");
+    return res.json(mapUserRow(result.rows[0]));
+  } catch (err) {
+    console.log('DB profile fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/users', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT * FROM users ORDER BY role, points DESC, name');
+    return res.json(result.rows.map(mapUserRow));
+  } catch (err) {
+    console.log('DB users fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/users/:id', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [req.params.id]);
+    const user = mapUserRow(result.rows[0]);
+    return res.json(user || { error: 'Not found' });
+  } catch (err) {
+    console.log('DB user fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/schools', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT * FROM schools ORDER BY green_score DESC');
+    return res.json(result.rows.map(mapSchoolRow));
+  } catch (err) {
+    console.log('DB schools fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/topics', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT id, name, difficulty, lessons FROM topics ORDER BY id');
+    return res.json(result.rows);
+  } catch (err) {
+    console.log('DB topics fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/missions', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT * FROM missions ORDER BY id');
+    return res.json(result.rows.map(mapMissionRow));
+  } catch (err) {
+    console.log('DB missions fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/submissions', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT * FROM submissions ORDER BY timestamp DESC');
+    return res.json(result.rows.map(mapSubmissionRow));
+  } catch (err) {
+    console.log('DB submissions fallback:', err.message);
+    return next();
+  }
+});
+
+app.put('/api/submissions/:id/approve', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query(
+      "UPDATE submissions SET status = 'approved', teacher_approval = 'approved', points_awarded = CASE WHEN points_awarded > 0 THEN points_awarded ELSE 100 END WHERE id = $1 RETURNING points_awarded",
+      [req.params.id]
+    );
+    return res.json({
+      success: true,
+      message: 'Submission approved',
+      pointsAwarded: result.rows[0]?.points_awarded || 100,
+    });
+  } catch (err) {
+    console.log('DB approve fallback:', err.message);
+    return next();
+  }
+});
+
+app.put('/api/submissions/:id/reject', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    await db.query(
+      "UPDATE submissions SET status = 'rejected', teacher_approval = 'rejected', points_awarded = 0 WHERE id = $1",
+      [req.params.id]
+    );
+    return res.json({ success: true, message: 'Submission rejected' });
+  } catch (err) {
+    console.log('DB reject fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/leaderboards/class/:id', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query(
+      "SELECT ROW_NUMBER() OVER (ORDER BY points DESC, name ASC)::int AS rank, name, points FROM users WHERE role = 'student' AND class_id = $1 ORDER BY points DESC, name ASC LIMIT 10",
+      [req.params.id]
+    );
+    return res.json(result.rows);
+  } catch (err) {
+    console.log('DB leaderboard fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/competitions', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT id, name, status, schools, students FROM competitions ORDER BY start_date NULLS LAST, name');
+    return res.json(result.rows);
+  } catch (err) {
+    console.log('DB competitions fallback:', err.message);
+    return next();
+  }
+});
+
+app.post('/api/competitions', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const id = 'comp_' + Date.now();
+    const result = await db.query(
+      'INSERT INTO competitions (id, name, status, schools, students, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [id, req.body.name, req.body.status || 'upcoming', Number(req.body.schools) || 0, Number(req.body.students) || 0, req.body.description || '']
+    );
+    return res.status(201).json({ success: true, competition: result.rows[0] });
+  } catch (err) {
+    console.log('DB create competition fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/badges', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT id, name, icon, unlocked FROM badges ORDER BY id');
+    return res.json(result.rows);
+  } catch (err) {
+    console.log('DB badges fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/tasks', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const { classId } = req.query;
+    const result = classId
+      ? await db.query('SELECT * FROM tasks WHERE class_id = $1 ORDER BY deadline NULLS LAST, id', [classId])
+      : await db.query('SELECT * FROM tasks ORDER BY deadline NULLS LAST, id');
+    return res.json(result.rows.map(mapTaskRow));
+  } catch (err) {
+    console.log('DB tasks fallback:', err.message);
+    return next();
+  }
+});
+
+app.post('/api/tasks', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  const { classId, syllabus, envTopic, task, difficulty, deadline, points } = req.body;
+  if (!classId || !task) {
+    return res.status(400).json({ error: 'classId and task are required' });
+  }
+  try {
+    const id = 't' + Date.now();
+    const result = await db.query(
+      "INSERT INTO tasks (id, class_id, syllabus, env_topic, task, difficulty, deadline, points, status, students, completed) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::date, $8, 'assigned', 40, 0) RETURNING *",
+      [id, classId, syllabus || '', envTopic || '', task, difficulty || 'Medium', deadline || '', Number(points) || 100]
+    );
+    return res.status(201).json(mapTaskRow(result.rows[0]));
+  } catch (err) {
+    console.log('DB create task fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/analytics/platform', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM schools) AS "totalSchools",
+        (SELECT COALESCE(SUM(students), 0)::int FROM schools) AS "totalStudents",
+        (SELECT COALESCE(SUM(teachers), 0)::int FROM schools) AS "totalTeachers",
+        (SELECT COUNT(*)::int FROM competitions WHERE status = 'active') AS "activeCompetitions"
+    `);
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.log('DB platform analytics fallback:', err.message);
+    return next();
+  }
+});
+
+app.get('/api/analytics/class/:id', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+  try {
+    const result = await db.query('SELECT * FROM class_analytics WHERE class_id = $1 LIMIT 1', [req.params.id]);
+    if (!result.rows[0]) return next();
+    const pendingCount = await getPendingSubmissionCount();
+    return res.json({
+      name: result.rows[0].name,
+      topic_avg_scores: result.rows[0].topic_avg_scores,
+      participation_trend: result.rows[0].participation_trend,
+      pending_verification_count: pendingCount,
+    });
+  } catch (err) {
+    console.log('DB class analytics fallback:', err.message);
+    return next();
+  }
+});
 
 // --- AUTH ROUTES ---
 app.post('/api/auth/login', (req, res) => {
@@ -337,8 +662,22 @@ app.get('/api/ai/class-insights/:classId', async (req, res) => {
   }
 
   // Node-side fallback: build data-grounded actions from the class analytics we already have
-  const summary = CLASS_ANALYTICS[classId] || CLASS_ANALYTICS['c1'];
-  const pendingCount = submissions.filter(s => s.status === 'awaiting_approval').length;
+  let summary = CLASS_ANALYTICS[classId] || CLASS_ANALYTICS['c1'];
+  if (db.hasDatabase) {
+    try {
+      const result = await db.query('SELECT * FROM class_analytics WHERE class_id = $1 LIMIT 1', [classId]);
+      if (result.rows[0]) {
+        summary = {
+          name: result.rows[0].name,
+          topic_avg_scores: result.rows[0].topic_avg_scores,
+          participation_trend: result.rows[0].participation_trend,
+        };
+      }
+    } catch (err) {
+      console.log('DB class insights fallback:', err.message);
+    }
+  }
+  const pendingCount = await getPendingSubmissionCount();
   const actions = [];
 
   if (pendingCount > 0) {
