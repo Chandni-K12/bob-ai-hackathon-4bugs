@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, AlertTriangle, ClipboardList } from 'lucide-react';
-import { aiAPI, tasksAPI, missionsAPI } from '../../services/api';
+import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
+import { aiAPI, tasksAPI, submissionsAPI, missionsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 
@@ -488,6 +488,14 @@ function taskToMission(t) {
   };
 }
 
+import { useSearchParams } from 'react-router-dom';
+
+export default function MissionsPage() {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetId = searchParams.get('id');
+  const targetTitle = searchParams.get('title');
+
 const fallbackMissions = [
   { id: 'm1', title: 'Plastic-Free Week', icon: '♻️', description: 'Avoid single-use plastics for 7 days and track your impact.', topic: 'Waste Management', difficulty: 'Easy', points: 100, progress: 2, total: 7, deadline: '2026-08-30', status: 'in_progress', color: '#22c55e' },
   { id: 'm2', title: 'Water Saver', icon: '💧', description: 'Track daily water-saving habits and reduce unnecessary consumption.', topic: 'Water Conservation', difficulty: 'Medium', points: 75, progress: 3, total: 5, deadline: '2026-08-23', status: 'in_progress', color: '#3b82f6' },
@@ -596,9 +604,39 @@ export default function MissionsPage() {
     };
   }, [user?.className, user?.classId]);
 
-  // Teacher tasks shown first (with a badge), then regular missions
-  const allMissions = [...teacherTasks, ...missions];
-  const filtered = allMissions.filter(m => filter === 'all' || m.status === filter);
+  // Match target mission from URL query parameter
+  const isMatch = (m) => {
+    if (targetId && m.id === targetId) return true;
+    if (targetTitle) {
+      const q = targetTitle.toLowerCase();
+      const titleLower = (m.title || '').toLowerCase();
+      const topicLower = (m.topic || '').toLowerCase();
+      return titleLower.includes(q) || q.includes(titleLower) || topicLower.includes(q) || q.includes(topicLower);
+    }
+    return false;
+  };
+
+  const baseMissions = [...teacherTasks, ...missions];
+
+  // Auto-open modal & auto-start targeted mission when redirected from Dashboard
+  const [autoOpened, setAutoOpened] = useState(false);
+  useEffect(() => {
+    if ((targetId || targetTitle) && !autoOpened && baseMissions.length > 0) {
+      const match = baseMissions.find(isMatch);
+      if (match) {
+        if (match.status === 'not_started') {
+          startMission(match.id);
+        }
+        setSubmitMission(match);
+        setAutoOpened(true);
+      }
+    }
+  }, [targetId, targetTitle, baseMissions, autoOpened]);
+
+  // If a target parameter exists in URL, display ONLY that targeted mission card!
+  const filtered = (targetId || targetTitle)
+    ? baseMissions.filter(isMatch)
+    : baseMissions.filter(m => filter === 'all' || m.status === filter);
 
   const statusColors = {
     in_progress: 'bg-eco-blue/10 text-eco-blue',
@@ -612,6 +650,11 @@ export default function MissionsPage() {
     not_started: 'Not Started',
   };
 
+  const handleClearTarget = () => {
+    setSearchParams({});
+    setAutoOpened(false);
+  };
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">
       <motion.div variants={item}>
@@ -619,31 +662,61 @@ export default function MissionsPage() {
         <p className="text-sm text-muted-foreground mt-1">Complete real-world environmental activities and earn Eco Points</p>
       </motion.div>
 
-      <motion.div variants={item} className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-        {['all', 'in_progress', 'not_started', 'completed'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-xs font-medium capitalize whitespace-nowrap transition ${filter === f ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
-            {f.replace('_', ' ')} {f !== 'all' && `(${allMissions.filter(m => m.status === f).length})`}
+      {(targetTitle || targetId) && (
+        <motion.div variants={item} className="p-3.5 rounded-xl bg-eco-blue/10 border border-eco-blue/30 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-semibold text-eco-blue">
+            <span>🎯 Targeted Mission Selected:</span>
+            <span className="text-foreground font-bold">{targetTitle || targetId}</span>
+          </div>
+          <button
+            onClick={handleClearTarget}
+            className="text-xs px-3 py-1.5 rounded-lg bg-primary text-white hover:opacity-90 font-medium transition"
+          >
+            Show All Missions
           </button>
-        ))}
-      </motion.div>
+        </motion.div>
+      )}
+
+      {!(targetTitle || targetId) && (
+        <motion.div variants={item} className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {['all', 'in_progress', 'not_started', 'completed'].map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg text-xs font-medium capitalize whitespace-nowrap transition ${filter === f ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
+              {f.replace('_', ' ')} {f !== 'all' && `(${baseMissions.filter(m => m.status === f).length})`}
+            </button>
+          ))}
+        </motion.div>
+      )}
 
       <motion.div variants={container} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(mission => (
-          <motion.div key={mission.id} variants={item} whileHover={{ y: -3 }}
-            className="glass rounded-xl p-5 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10" style={{ background: mission.color }} />
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-3xl">{mission.icon}</span>
-              <div className="flex items-center gap-1.5">
-                {mission.fromTeacher && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-eco-blue/15 text-eco-blue flex items-center gap-1">
-                    <ClipboardList className="w-3 h-3" /> Teacher
-                  </span>
-                )}
-                <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[mission.status]}`}>{statusLabels[mission.status]}</span>
+        {filtered.map(mission => {
+          const matched = isMatch(mission);
+          return (
+            <motion.div
+              key={mission.id}
+              variants={item}
+              whileHover={{ y: -3 }}
+              className={`glass rounded-xl p-5 relative overflow-hidden group transition-all ${
+                matched ? 'ring-2 ring-eco-blue border-eco-blue bg-eco-blue/5 shadow-xl scale-[1.01]' : ''
+              }`}
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10" style={{ background: mission.color }} />
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-3xl">{mission.icon}</span>
+                <div className="flex items-center gap-1.5">
+                  {matched && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-eco-blue text-white font-bold shadow-xs">
+                      Targeted Mission
+                    </span>
+                  )}
+                  {mission.fromTeacher && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-eco-blue/15 text-eco-blue flex items-center gap-1">
+                      <ClipboardList className="w-3 h-3" /> Teacher
+                    </span>
+                  )}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[mission.status]}`}>{statusLabels[mission.status]}</span>
+                </div>
               </div>
-            </div>
             <h3 className="font-semibold mb-1">{mission.title}</h3>
             <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{mission.description}</p>
 
@@ -688,15 +761,25 @@ export default function MissionsPage() {
               )}
             </div>
           </motion.div>
-        ))}
-      </motion.div>
+        );
+      })}
+    </motion.div>
 
       <AnimatePresence>
         {submitMission && (
           <VerificationModal
             mission={submitMission}
             onClose={() => setSubmitMission(null)}
-            onVerified={(id) => {
+            onVerified={(id, aiResult) => {
+              submissionsAPI.create({
+                studentName:        user?.name || 'Student',
+                missionTitle:       submitMission.title,
+                verified:           aiResult?.verified ?? true,
+                confidence:         aiResult?.confidence ?? 0,
+                teacherExplanation: aiResult?.teacher_explanation ?? '',
+                needsTeacherReview: aiResult?.needs_teacher_review ?? false,
+                detectedItems:      aiResult?.detected_objects ?? [],
+              }).catch(() => {});
               completeMission(id);
               if (submitMission?.points) addPoints(Number(submitMission.points));
               setSubmitMission(null);

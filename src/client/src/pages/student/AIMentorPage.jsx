@@ -153,8 +153,8 @@ export default function AIMentorPage() {
 
     aiAPI.personalizeLearning(payload)
       .then((res) => {
-        const data = res.data;
-        if (data && data.recommended_topic) {
+        const SENTINEL = 'Unable to personalise right now';
+        if (data && data.recommended_topic && data.recommended_topic !== SENTINEL) {
           setRec((prev) => ({
             ...prev,
             recommendedLesson: { title: data.recommended_topic, reason: data.reason },
@@ -162,6 +162,10 @@ export default function AIMentorPage() {
             recommendedTopic: data.recommended_topic,
             learningStyle: data.learning_style,
           }));
+        } else if (data && data.recommended_topic === SENTINEL) {
+          // AI service returned its explicit fallback — keep mock recommendation
+          // untouched and surface a non-blocking note in the UI.
+          setRec(prev => ({ ...prev, _liveUnavailable: true }));
         }
       })
       .catch(() => {
@@ -367,6 +371,15 @@ export default function AIMentorPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Live-personalisation unavailable notice */}
+      {rec._liveUnavailable && (
+        <motion.div variants={item}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-eco-amber/10 border border-eco-amber/30 text-xs text-eco-amber">
+          <span>⚠️</span>
+          <span>Live personalisation is temporarily unavailable — showing your default recommendations.</span>
+        </motion.div>
+      )}
 
       {/* Recommended Lesson */}
       <motion.div variants={item} className="glass rounded-xl p-6 border-l-4 border-eco-blue">

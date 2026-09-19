@@ -77,7 +77,7 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setLiveUpdate({ name: user?.name || 'Ananya', from: 8, to: 7 });
+      setLiveUpdate({ name: user?.name || 'You', from: 8, to: 7 });
       setTimeout(() => setLiveUpdate(null), 4000);
     }, 3000);
     return () => clearTimeout(timer);

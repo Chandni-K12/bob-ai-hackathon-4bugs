@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HelpCircle, CheckCircle2, XCircle, Zap, ChevronRight, RotateCcw, Trophy } from 'lucide-react';
+import { mockQuizzes } from '../../data/mockData';
 import { useAuth } from '../../context/AuthContext';
+import { HelpCircle, CheckCircle2, XCircle, Zap, ChevronRight, RotateCcw, Trophy } from 'lucide-react';
 
 const fallbackQuizzes = [
   {
@@ -52,6 +55,9 @@ const fallbackQuizzes = [
 ];
 
 export default function QuizPage() {
+  const [searchParams] = useSearchParams();
+  const targetQuery = searchParams.get('title') || searchParams.get('id') || searchParams.get('topic');
+
   const { addPoints } = useAuth();
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [currentQ, setCurrentQ] = useState(0);
@@ -61,6 +67,23 @@ export default function QuizPage() {
   const [totalPoints, setTotalPoints] = useState(0);
   const [finished, setFinished] = useState(false);
   const [answers, setAnswers] = useState([]);
+
+  // Auto-open targeted quiz if passed in URL
+  useEffect(() => {
+    if (targetQuery && !selectedQuiz) {
+      const qLower = targetQuery.toLowerCase();
+      const match = mockQuizzes.find(q =>
+        q.id === targetQuery ||
+        q.title.toLowerCase().includes(qLower) ||
+        q.topic.toLowerCase().includes(qLower) ||
+        qLower.includes(q.title.toLowerCase()) ||
+        qLower.includes(q.topic.toLowerCase())
+      );
+      if (match) {
+        setSelectedQuiz(match);
+      }
+    }
+  }, [targetQuery]);
 
   const handleSelect = (idx) => {
     if (answered) return;
@@ -85,8 +108,10 @@ export default function QuizPage() {
       setSelected(null);
       setAnswered(false);
     } else {
-      if (totalPoints > 0) {
-        addPoints(totalPoints);
+      const finalQuestion = selectedQuiz.questions[currentQ];
+      const finalPoints = totalPoints + (selected === finalQuestion.correct ? finalQuestion.points : 0);
+      if (finalPoints > 0 && addPoints) {
+        addPoints(finalPoints, 'quiz');
       }
       setFinished(true);
     }

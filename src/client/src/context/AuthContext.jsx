@@ -9,6 +9,8 @@ const normalizeUser = (payload) => {
     name: user.name || 'Student',
     email: user.email || '',
     role: user.role || 'student',
+    city: user.city || null,
+    institutionType: user.institutionType || user.institution_type || 'school',
     classId: user.classId || user.class_id || user.className || 'c1',
     className: user.className || user.class_name || user.class || '8-A',
     schoolId: user.schoolId || user.school_id || 's1',
@@ -29,37 +31,117 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const token = localStorage.getItem('eco_token');
+    const storedUser = localStorage.getItem('eco_user');
 
-    if (!token) {
+    if (!token && !storedUser) {
       setUser(null);
       setLoading(false);
       return;
     }
 
-    authAPI.getProfile()
-      .then((res) => {
-        const nextUser = normalizeUser(res.data);
-        setUser(nextUser);
-      })
-      .catch(() => {
-        localStorage.removeItem('eco_token');
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
+    if (storedUser) {
+      try {
+        setUser(normalizeUser(JSON.parse(storedUser)));
+      } catch {
+        localStorage.removeItem('eco_user');
+      }
+    }
+
+    if (token) {
+      authAPI.getProfile()
+        .then((res) => {
+          const nextUser = normalizeUser(res.data);
+          localStorage.setItem('eco_user', JSON.stringify(nextUser));
+          setUser(nextUser);
+        })
+        .catch(() => {
+          // Keep offline user if token verification fails
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const login = useCallback(async (email, password, role) => {
-    const response = await authAPI.login({ email, password, role });
-    const userData = normalizeUser(response.data.user ?? response.data);
-    localStorage.setItem('eco_token', response.data.token || 'mock_jwt_' + Date.now());
-    setUser(userData);
-    return userData;
+    try {
+      const res = await authAPI.login({ email, password, role });
+      const rawUser = res.data.user ?? res.data;
+      const userData = normalizeUser(rawUser);
+      const token = res.data.token || 'mock_jwt_' + Date.now();
+      localStorage.setItem('eco_token', token);
+      localStorage.setItem('eco_user', JSON.stringify(userData));
+      setUser(userData);
+      return userData;
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 400) {
+        const message = err.response?.data?.error || 'Invalid credentials';
+        throw new Error(message);
+      }
+      // Network or server error fallback
+      const stored = localStorage.getItem('eco_user');
+      if (stored) {
+        try {
+          const u = normalizeUser(JSON.parse(stored));
+          if (u.email === email && (!role || u.role === role)) {
+            setUser(u);
+            return u;
+          }
+        } catch {}
+      }
+      const demoUsers = {
+        'ananya@student.eco': { id: 'u1', name: 'Ananya Sharma', email: 'ananya@student.eco', role: 'student', points: 2450, streak: 5, level: 12, badges: 12 },
+        'meera@teacher.eco': { id: 't1', name: 'Dr. Meera Reddy', email: 'meera@teacher.eco', role: 'teacher' },
+        'lakshmi@organizer.eco': { id: 'o1', name: 'Mrs. Lakshmi Menon', email: 'lakshmi@organizer.eco', role: 'organizer' },
+      };
+      if (demoUsers[email]) {
+        const u = normalizeUser(demoUsers[email]);
+        localStorage.setItem('eco_token', 'token_demo_' + Date.now());
+        localStorage.setItem('eco_user', JSON.stringify(u));
+        setUser(u);
+        return u;
+      }
+      const message = err.response?.data?.error || 'Unable to connect to server. Please try again.';
+      throw new Error(message);
+    }
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('eco_token');
-    localStorage.removeItem('eco_user');
-    setUser(null);
+  const register = useCallback(async (userData) => {
+    try {
+      const res = await authAPI.register(userData);
+      const rawUser = res.data.user ?? res.data;
+      const newUser = normalizeUser(rawUser);
+      const token = res.data.token || 'token_' + Date.now();
+      localStorage.setItem('eco_token', token);
+      localStorage.setItem('eco_user', JSON.stringify(newUser));
+      setUser(newUser);
+      return newUser;
+    } catch (err) {
+      if (err.response?.status === 409 || err.response?.status === 400) {
+        const message = err.response?.data?.error || 'Registration failed';
+        throw new Error(message);
+      }
+      console.warn('Backend API connection issue, creating local session:', err.message);
+      const newUser = normalizeUser({
+        id: userData.role.charAt(0) + '_' + Date.now(),
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        city: userData.city || null,
+        institutionType: userData.institutionType || 'school',
+        schoolId: userData.schoolId || null,
+        classId: userData.classId || null,
+        points: 0,
+        streak: 0,
+        level: 1,
+        badges: 0,
+      });
+      const token = 'token_local_' + Date.now();
+      localStorage.setItem('eco_token', token);
+      localStorage.setItem('eco_user', JSON.stringify(newUser));
+      setUser(newUser);
+      return newUser;
+    }
   }, []);
 
   const updateUser = useCallback(async (updater) => {
@@ -68,6 +150,7 @@ export function AuthProvider({ children }) {
     if (!next) return null;
 
     const normalized = normalizeUser(next);
+    localStorage.setItem('eco_user', JSON.stringify(normalized));
     setUser(normalized);
 
     if (!normalized.id) return normalized;
@@ -81,6 +164,7 @@ export function AuthProvider({ children }) {
       });
 
       const synced = normalizeUser(response.data?.user ?? response.data ?? normalized);
+      localStorage.setItem('eco_user', JSON.stringify(synced));
       setUser(synced);
       return synced;
     } catch (error) {
@@ -89,16 +173,28 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
-  const addPoints = useCallback((pointsToAdd) => {
-    if (!Number.isFinite(Number(pointsToAdd)) || Number(pointsToAdd) === 0) return;
+  const addPoints = useCallback((pointsToAdd, activity) => {
+    const amount = Number(pointsToAdd) || 0;
+    if (amount <= 0) return;
     return updateUser((current) => {
       const nextUser = current || { id: 'student', name: 'Student', role: 'student', points: 0, streak: 0, level: 1 };
-      return { ...nextUser, points: Number(nextUser.points ?? 0) + Number(pointsToAdd) };
+      const nextPoints = Number(nextUser.points ?? 0) + amount;
+      return {
+        ...nextUser,
+        points: nextPoints,
+        level: Math.floor(nextPoints / 200) + 1,
+      };
     });
   }, [updateUser]);
 
+  const logout = useCallback(() => {
+    localStorage.removeItem('eco_token');
+    localStorage.removeItem('eco_user');
+    setUser(null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser, addPoints, loading, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, addPoints, loading, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

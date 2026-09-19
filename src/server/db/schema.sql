@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'organizer')),
   school_id TEXT REFERENCES schools(id),
   class_id TEXT REFERENCES classes(id),
+  city TEXT,
+  institution_type TEXT CHECK (institution_type IN ('school', 'college', NULL)),
   points INTEGER DEFAULT 0,
   streak INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,
@@ -106,3 +108,13 @@ CREATE TABLE IF NOT EXISTS class_analytics (
   topic_avg_scores JSONB DEFAULT '[]'::jsonb,
   participation_trend JSONB DEFAULT '[]'::jsonb
 );
+
+CREATE TABLE IF NOT EXISTS student_topic_progress (
+  student_id TEXT NOT NULL,
+  topic_id TEXT NOT NULL,
+  completed_lessons INTEGER DEFAULT 0,
+  progress INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (student_id, topic_id)
+);
+

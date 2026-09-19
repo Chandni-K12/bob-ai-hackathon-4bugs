@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { Leaf, GraduationCap, BookOpen, Building, ArrowRight, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Leaf, GraduationCap, BookOpen, Building, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const roles = [
   { id: 'student', label: 'Student', icon: GraduationCap, color: 'from-green-500 to-emerald-600', glow: 'rgba(34,197,94,0.3)', desc: 'Learn, play & earn eco points', defaultEmail: 'ananya@student.eco' },
@@ -22,6 +22,13 @@ export default function LoginPage() {
 
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
+    setEmail('');
+    setPassword('');
+    setError('');
+  };
+
+  const handleQuickDemo = (role) => {
+    setSelectedRole(role);
     setEmail(role.defaultEmail);
     setPassword('demo123');
     setError('');
@@ -33,11 +40,14 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const user = await login(email, password, selectedRole.id);
+      const cleanEmail = (email || '').trim();
+      const user = await login(cleanEmail, password, selectedRole.id);
       const routes = { student: '/student', teacher: '/teacher', organizer: '/organizer' };
-      navigate(routes[user.role] || '/student');
+      const target = routes[user.role] || `/${user.role}` || '/student';
+      navigate(target, { replace: true });
     } catch (err) {
-      setError('Invalid credentials. Try the default demo email.');
+      console.error('Login error:', err);
+      setError(err.message || 'Invalid credentials. Please check your email and password.');
     } finally {
       setLoading(false);
     }
@@ -79,10 +89,7 @@ export default function LoginPage() {
         <div className="absolute top-[80%] right-[35%] text-4xl opacity-15 animate-drift-leaves-reverse">🌻</div>
         <div className="absolute top-[40%] left-[45%] text-[32px] opacity-12 animate-float-medium">🌸</div>
         
-        {/* Stars / Sparkles */}
-        <div className="absolute top-[25%] left-[18%] text-2xl opacity-15 animate-float-slow">✨</div>
-        <div className="absolute top-[70%] right-[8%] text-3xl opacity-18 animate-float-medium">⭐</div>
-        <div className="absolute bottom-[8%] left-[50%] text-2xl opacity-15 animate-float-slow">✨</div>
+
       </div>
 
       <motion.div
@@ -132,6 +139,10 @@ export default function LoginPage() {
                   </motion.button>
                 ))}
               </div>
+              <p className="text-xs text-center text-muted-foreground mt-4">
+                Don't have an account?{' '}
+                <Link to="/register" className="text-primary hover:underline font-medium">Register here</Link>
+              </p>
             </>
           ) : (
             <AnimatePresence mode="wait">
@@ -191,9 +202,14 @@ export default function LoginPage() {
                 </div>
 
                 {error && (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-destructive text-sm bg-destructive/10 px-3 py-2 rounded-lg">
-                    {error}
-                  </motion.p>
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-2.5 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm"
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                    <span className="font-medium text-xs sm:text-sm">{error}</span>
+                  </motion.div>
                 )}
 
                 <motion.button
@@ -207,14 +223,15 @@ export default function LoginPage() {
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4" />
                       Sign In
                     </>
                   )}
                 </motion.button>
 
-                <p className="text-xs text-center text-muted-foreground mt-3">
-                  Demo mode • Pre-filled credentials ready
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Don't have an account?{' '}
+                  <Link to="/register" className="text-primary hover:underline font-medium">Register here</Link>
                 </p>
               </motion.form>
             </AnimatePresence>

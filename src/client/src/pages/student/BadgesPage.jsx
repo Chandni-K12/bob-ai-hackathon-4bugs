@@ -1,47 +1,57 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { mockBadges } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
 import { badgesAPI } from '../../services/api';
 import { Award, Lock, X, Sparkles } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, scale: 0.8 }, show: { opacity: 1, scale: 1 } };
 
-const fallbackBadges = [
-  { id: 'b1', name: 'Eco Starter', icon: '🌱', description: 'Complete your first environmental lesson', unlocked: true, unlockedDate: '2026-07-15', color: '#22c55e' },
-  { id: 'b2', name: 'Waste Warrior', icon: '♻️', description: 'Complete 5 waste management activities', unlocked: true, unlockedDate: '2026-07-22', color: '#10b981' },
-  { id: 'b3', name: 'Water Guardian', icon: '💧', description: 'Save 100L of water through missions', unlocked: true, unlockedDate: '2026-07-30', color: '#3b82f6' },
-  { id: 'b4', name: 'Green Champion', icon: '🌳', description: 'Plant 5 trees and verify growth', unlocked: true, unlockedDate: '2026-08-05', color: '#16a34a' },
-  { id: 'b5', name: 'Eco Master', icon: '🏆', description: 'Reach Level 15 and earn 3000+ Eco Points', unlocked: false, color: '#eab308' },
-  { id: 'b6', name: 'Mission Master', icon: '🎯', description: 'Complete 25 environmental missions', unlocked: true, unlockedDate: '2026-08-14', color: '#f43f5e' },
-];
+const BADGE_THRESHOLDS = {
+  b1: 1,      // Eco Starter
+  b2: 100,    // Waste Warrior
+  b3: 200,    // Water Guardian
+  b4: 400,    // Green Champion
+  b5: 600,    // Climate Hero
+  b6: 800,    // 7-Week Streak
+  b7: 3000,   // Eco Master
+  b8: 500,    // Quiz Champion
+  b9: 1000,   // Mission Master
+  b10: 300,   // Team Player
+  b11: 700,   // Biodiversity Scout
+  b12: 900,   // Energy Saver
+  b13: 1500,  // Pollution Fighter
+  b14: 2500,  // Eco Leader
+};
 
 export default function BadgesPage() {
+  const { user } = useAuth();
   const [selectedBadge, setSelectedBadge] = useState(null);
-  const [badges, setBadges] = useState(fallbackBadges);
+  const [baseBadges, setBaseBadges] = useState(mockBadges);
 
   useEffect(() => {
     let active = true;
     badgesAPI.getAll().then((res) => {
       if (!active) return;
-      const next = (res.data || []).map((badge, index) => ({
-        ...badge,
-        id: badge.id || `b-${index + 1}`,
-        name: badge.name || `Badge ${index + 1}`,
-        icon: badge.icon || '🏅',
-        description: badge.description || 'Earn this achievement',
-        unlocked: Boolean(badge.unlocked),
-        unlockedDate: badge.unlockedDate || new Date().toISOString(),
-        color: badge.color || ['#22c55e', '#10b981', '#3b82f6', '#eab308'][index % 4],
-      }));
-      if (next.length) setBadges(next);
-    }).catch(() => {
-      if (active) setBadges(fallbackBadges);
-    });
-
-    return () => {
-      active = false;
-    };
+      if (res.data?.length) {
+        setBaseBadges(res.data);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
   }, []);
+
+  const userPoints = user?.points ?? 0;
+
+  const badges = baseBadges.map((b, index) => {
+    const threshold = BADGE_THRESHOLDS[b.id] ?? (index + 1) * 100;
+    const isUnlocked = userPoints >= threshold;
+    return {
+      ...b,
+      unlocked: isUnlocked,
+      unlockedDate: isUnlocked ? (b.unlockedDate || new Date().toISOString()) : null,
+    };
+  });
 
   const unlocked = badges.filter((b) => b.unlocked);
   const locked = badges.filter((b) => !b.unlocked);

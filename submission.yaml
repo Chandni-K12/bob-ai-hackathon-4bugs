@@ -52,8 +52,9 @@ submission:
     - "Role-based dashboards (student/teacher/organizer) with real-time-style leaderboards, badges, streaks and Green Score"
 
   tech_stack:
-    languages: ["JavaScript", "Python"]                      # REQUIRED — e.g., ["Python", "TypeScript"]
-    frameworks: ["React", "Vite", "Tailwind CSS", "Express.js", "FastAPI"]                     # e.g., ["FastAPI", "React"]
+    languages: [JavaScript, Python]                      # REQUIRED — e.g., ["Python", "TypeScript"]
+    Frontend: [React, Vite, Tailwind CSS, Radix UI, Framer Motion, Recharts, React Router, Axios, Leaflet]                     # e.g., ["FastAPI", "React"]
+    Backend: [Express.js, Socket.io, JSON Web Tokens]
     ibm_technologies: ["IBM Bob"]               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
     
   what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
