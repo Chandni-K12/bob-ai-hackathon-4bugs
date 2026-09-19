@@ -59,10 +59,13 @@ _BORDERLINE_HIGH = 0.80
 
 MISSION_EXPECTED: dict[str, list[str]] = {
     "tree_plantation": ["Tree sapling", "Soil", "Gardening tools"],
+    "biodiversity": ["Flora / fauna", "Natural habitat", "Species observation"],
     "waste_segregation": ["Paper → Dry Waste", "Plastic → Dry Waste", "Organic Waste → Wet Waste"],
     "water_conservation": ["Water meter", "Low-flow faucet", "Collection system"],
     "clean_campus": ["Group activity", "Cleaning supplies", "Campus area"],
     "green_transport": ["Bicycle", "Walking path"],
+    "energy_saving": ["Electricity meter", "LED lights", "Switched-off appliances"],
+    "composting": ["Compost pit", "Organic waste", "Earthworms / soil"],
 }
 
 # ---------------------------------------------------------------------------
@@ -157,10 +160,13 @@ def _call_bob(prompt: str) -> dict:
 
 FALLBACK_EVIDENCE_DESCRIPTIONS: dict[str, str] = {
     "tree_plantation": "a healthy tree sapling planted in soil with gardening tools visible.",
+    "biodiversity": "flora, fauna, or natural habitat evidence such as a species observation in a natural setting.",
     "waste_segregation": "proper separation of dry recyclable waste (paper, plastic) and wet organic scraps.",
     "water_conservation": "the water meter reading and low-flow conservation faucet in place.",
     "clean_campus": "active group cleaning activity with campus maintenance supplies.",
     "green_transport": "eco-friendly transit evidence via bicycle or dedicated walking path.",
+    "energy_saving": "electricity meter reading, LED lights, or switched-off appliances showing energy conservation.",
+    "composting": "a compost pit or bin with organic waste material and decomposition activity.",
 }
 
 def _fallback_explanations(

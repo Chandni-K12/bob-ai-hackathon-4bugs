@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { submissionsAPI } from '../../services/api';
 import { Shield, CheckCircle2, XCircle, Eye, MapPin, Clock, Image, X } from 'lucide-react';
@@ -13,20 +13,33 @@ export default function VerificationPage() {
 
   useEffect(() => {
     submissionsAPI.getAll()
-      .then(res => setSubmissions(res.data || []))
-      .catch(() => {});
+      .then((response) => setSubmissions(response.data || []))
+      .catch((error) => {
+        console.error('Failed to load verification submissions:', error);
+        setSubmissions([]);
+      });
   }, []);
 
-  const handleApprove = async (id) => {
-    setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'approved', status: 'approved', pointsAwarded: 100 } : s));
-    setViewSub(null);
-    try { await submissionsAPI.approve(id); } catch {}
+  const handleApprove = (id) => {
+    submissionsAPI.approve(id)
+      .then(() => {
+        setSubmissions((subs) => subs.map((submission) => submission.id === id ? { ...submission, teacherApproval: 'approved', status: 'approved', pointsAwarded: submission.pointsAwarded || 100 } : submission));
+        setViewSub(null);
+      })
+      .catch((error) => {
+        console.error('Failed to approve submission:', error);
+      });
   };
 
-  const handleReject = async (id) => {
-    setSubmissions(subs => subs.map(s => s.id === id ? { ...s, teacherApproval: 'rejected', status: 'rejected' } : s));
-    setViewSub(null);
-    try { await submissionsAPI.reject(id); } catch {}
+  const handleReject = (id) => {
+    submissionsAPI.reject(id)
+      .then(() => {
+        setSubmissions((subs) => subs.map((submission) => submission.id === id ? { ...submission, teacherApproval: 'rejected', status: 'rejected' } : submission));
+        setViewSub(null);
+      })
+      .catch((error) => {
+        console.error('Failed to reject submission:', error);
+      });
   };
 
   const filtered = submissions.filter(s => {
@@ -143,7 +156,7 @@ export default function VerificationPage() {
                   🤖 IBM Bob Technical Note (Teacher Review)
                 </p>
                 <p className="text-xs text-foreground leading-relaxed">
-                  {viewSub.teacherExplanation}
+                  {viewSub.teacherExplanation || `Automated check passed for '${viewSub.missionTitle}' at ${viewSub.aiConfidence}% confidence. Detected items: ${viewSub.detectedItems?.join(', ')}.`}
                 </p>
               </div>
 

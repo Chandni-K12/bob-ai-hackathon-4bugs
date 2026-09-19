@@ -1,8 +1,56 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockQuizzes } from '../../data/mockData';
 import { useAuth } from '../../context/AuthContext';
 import { HelpCircle, CheckCircle2, XCircle, Zap, ChevronRight, RotateCcw, Trophy } from 'lucide-react';
+
+const fallbackQuizzes = [
+  {
+    id: 'quiz-waste',
+    title: 'Plastic-Free Week',
+    topic: 'Waste Management',
+    difficulty: 'Easy',
+    totalPoints: 100,
+    questions: [
+      {
+        id: 'wq1',
+        scenario: 'Your school canteen uses disposable cups every day. What is the best action?',
+        question: 'Which choice reduces plastic waste most effectively?',
+        options: ['Carry a reusable bottle and refuse single-use cups', 'Throw the cups in the regular bin', 'Use the cups only on Fridays', 'Burn them after use'],
+        correct: 0,
+        points: 25,
+        explanation: 'Using a reusable bottle prevents single-use plastic waste and supports long-term waste reduction.',
+      },
+      {
+        id: 'wq2',
+        scenario: 'At home, you have dry paper, old bottles, and leftover food.',
+        question: 'How should the waste be separated?',
+        options: ['Paper and bottles in recycling; food in compost', 'All mixed together in one bin', 'Throw food into the recycling bin', 'Leave everything in the garden'],
+        correct: 0,
+        points: 25,
+        explanation: 'Segregation keeps recyclables separate from organics so they can be properly processed.',
+      },
+    ],
+  },
+  {
+    id: 'quiz-water',
+    title: 'Water Saver',
+    topic: 'Water Conservation',
+    difficulty: 'Medium',
+    totalPoints: 125,
+    questions: [
+      {
+        id: 'wa1',
+        scenario: 'You notice a dripping tap in the washroom.',
+        question: 'What should you do first?',
+        options: ['Report it and fix the leak quickly', 'Ignore it for later', 'Keep the tap running to test it', 'Pour water into the drain'],
+        correct: 0,
+        points: 25,
+        explanation: 'Fixing leaks prevents unnecessary water loss and saves resources.',
+      },
+    ],
+  },
+];
 
 export default function QuizPage() {
   const { addPoints } = useAuth();
@@ -38,6 +86,9 @@ export default function QuizPage() {
       setSelected(null);
       setAnswered(false);
     } else {
+      if (totalPoints > 0) {
+        addPoints(totalPoints);
+      }
       setFinished(true);
       // Credit earned points to user account
       const earnedTotal = answers.reduce((acc, a) => {
@@ -74,7 +125,7 @@ export default function QuizPage() {
           <p className="text-sm text-muted-foreground mt-1">Test your environmental knowledge with real-world scenarios</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockQuizzes.map((quiz, i) => (
+          {fallbackQuizzes.map((quiz, i) => (
             <motion.div key={quiz.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
               whileHover={{ scale: 1.02 }}
               onClick={() => setSelectedQuiz(quiz)}

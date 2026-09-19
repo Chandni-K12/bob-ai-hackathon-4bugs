@@ -38,13 +38,22 @@ export default function TaskAllocation() {
 
   const handleAssign = async (e) => {
     e.preventDefault();
+    let newTask = null;
     try {
       const res = await tasksAPI.create(form);
+      newTask = res.data;
       setTasks(prev => [...prev, res.data]);
     } catch {
       // Server offline — add locally so the UI still responds
-      setTasks(prev => [...prev, { ...form, id: 'local_' + Date.now(), status: 'assigned', students: 40, completed: 0 }]);
+      newTask = { ...form, id: 'local_' + Date.now(), status: 'assigned', students: 40, completed: 0 };
+      setTasks(prev => [...prev, newTask]);
     }
+
+    if (newTask) {
+      localStorage.setItem('gengreen_task_refresh', String(Date.now()));
+      window.dispatchEvent(new CustomEvent('gengreen-task-refresh'));
+    }
+
     setAssigned(true);
     setTimeout(() => {
       setAssigned(false);

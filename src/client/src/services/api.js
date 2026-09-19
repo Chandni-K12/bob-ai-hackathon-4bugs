@@ -20,7 +20,6 @@ api.interceptors.response.use(
     const isAuthRequest = err.config?.url?.includes('/auth/login') || err.config?.url?.includes('/auth/register');
     if (err.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('eco_token');
-      localStorage.removeItem('eco_user');
       window.location.href = '/login';
     }
     return Promise.reject(err);

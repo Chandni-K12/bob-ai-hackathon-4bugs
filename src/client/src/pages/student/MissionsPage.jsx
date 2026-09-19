@@ -1,22 +1,66 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockMissions } from '../../data/mockData';
 import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
-import { aiAPI, tasksAPI, submissionsAPI } from '../../services/api';
+import { aiAPI, tasksAPI, submissionsAPI, missionsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 const missionTypeMap = {
-  'm1': 'tree_plantation',       // Plant a Tree Sapling
-  'm2': 'waste_segregation',     // Waste Segregation Week
-  'm3': 'water_conservation',    // Water Audit at Home
-  'm4': 'clean_campus',          // Clean-up Drive
-  'm5': 'energy_saving',         // Energy Saving Challenge
-  'm6': 'composting',            // Composting Starter
-  'm7': 'green_transport',       // Bicycle to School Week
+  'm1': 'waste_segregation',   // Plastic-Free Week
+  'm2': 'water_conservation',  // Water Saver
+  'm3': 'waste_segregation',   // Waste Segregation Champion
+  'm4': 'green_transport',     // Green Transport
+  'm5': 'tree_plantation',     // Plant a Tree
+  'm6': 'biodiversity',        // Biodiversity Explorer
+  'm7': 'clean_campus',        // Clean Campus
+  'm8': 'energy_saving',       // Energy Audit
+  'm9': 'composting',          // Composting Hero
+  'm10': 'water_conservation', // Rain Water Harvesting
 };
+
+/**
+ * Derive a mission_type from the envTopic string of a teacher-assigned task.
+ * This makes AI verification dynamic instead of always falling back to a single default.
+ */
+const topicToMissionType = {
+  'water conservation': 'water_conservation',
+  'renewable energy':   'energy_saving',
+  'energy':             'energy_saving',
+  'waste management':   'waste_segregation',
+  'biodiversity':       'biodiversity',
+  'composting':         'composting',
+  'clean campus':       'clean_campus',
+  'green transport':    'green_transport',
+  'tree plantation':    'tree_plantation',
+};
+
+function deriveMissionType(mission) {
+  if (missionTypeMap[mission.id]) return missionTypeMap[mission.id];
+  if (mission.missionType) return mission.missionType;
+  if (mission.topic) {
+    const t = mission.topic.toLowerCase();
+    for (const [keyword, type] of Object.entries(topicToMissionType)) {
+      if (t.includes(keyword)) return type;
+    }
+  }
+  if (mission.title) {
+    const title = mission.title.toLowerCase();
+    for (const [keyword, type] of Object.entries(topicToMissionType)) {
+      if (title.includes(keyword)) return type;
+    }
+    if (title.includes('biodiversity') || title.includes('species') || title.includes('habitat')) return 'biodiversity';
+    if (title.includes('energy') || title.includes('audit')) return 'energy_saving';
+    if (title.includes('waste') || title.includes('segregat')) return 'waste_segregation';
+    if (title.includes('water')) return 'water_conservation';
+    if (title.includes('tree') || title.includes('plant')) return 'tree_plantation';
+    if (title.includes('clean')) return 'clean_campus';
+    if (title.includes('compost')) return 'composting';
+    if (title.includes('cycle') || title.includes('transport') || title.includes('bicycle')) return 'green_transport';
+  }
+  return 'tree_plantation';
+}
 
 /**
  * Read a File as a base64 data-URL string.
@@ -100,6 +144,12 @@ const MISSION_VERIFY_RULES = {
     detected: ['Tree / plant foliage', 'Soil / earth tones', 'Outdoor environment'],
     failMsg: 'The image does not appear to show trees, plants, or soil. Please upload a photo of your tree plantation activity.',
   },
+  biodiversity: {
+    label: 'biodiversity activity (flora, fauna, habitat, species spotting)',
+    check: (c) => c.isNatureScene || c.greenRatio > 0.08 || (c.outdoorRatio > 0.12 && !c.isScreenshot),
+    detected: ['Flora / fauna', 'Natural habitat', 'Outdoor biodiversity scene'],
+    failMsg: 'The image does not appear to show biodiversity evidence. Please upload a photo of plants, animals, or natural habitat observations.',
+  },
   waste_segregation: {
     label: 'waste segregation (bins, sorted waste, recycling)',
     /** Should not be a dark screenshot; should have varied colors indicating physical objects */
@@ -162,7 +212,7 @@ function VerificationModal({ mission, onClose, onVerified }) {
   const handleUpload = async () => {
     if (!file) return;
     setStep(1);
-    const missionType = missionTypeMap[mission.id] || 'tree_plantation';
+    const missionType = deriveMissionType(mission);
     const rules = MISSION_VERIFY_RULES[missionType] || MISSION_VERIFY_RULES.tree_plantation;
 
     try {
@@ -252,7 +302,7 @@ function VerificationModal({ mission, onClose, onVerified }) {
                   <Shield className="w-3.5 h-3.5" /> What to upload
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {`Upload a clear photo showing ${(MISSION_VERIFY_RULES[missionTypeMap[mission.id] || 'tree_plantation'] || MISSION_VERIFY_RULES.tree_plantation).label}.`}
+                  {`Upload a clear photo showing ${(MISSION_VERIFY_RULES[deriveMissionType(mission)] || MISSION_VERIFY_RULES.tree_plantation).label}.`}
                 </p>
               </div>
 
@@ -437,11 +487,49 @@ function taskToMission(t) {
   };
 }
 
+const fallbackMissions = [
+  { id: 'm1', title: 'Plastic-Free Week', icon: '♻️', description: 'Avoid single-use plastics for 7 days and track your impact.', topic: 'Waste Management', difficulty: 'Easy', points: 100, progress: 2, total: 7, deadline: '2026-08-30', status: 'in_progress', color: '#22c55e' },
+  { id: 'm2', title: 'Water Saver', icon: '💧', description: 'Track daily water-saving habits and reduce unnecessary consumption.', topic: 'Water Conservation', difficulty: 'Medium', points: 75, progress: 3, total: 5, deadline: '2026-08-23', status: 'in_progress', color: '#3b82f6' },
+  { id: 'm5', title: 'Plant a Tree', icon: '🌳', description: 'Plant and document a sapling in your neighborhood or school area.', topic: 'Biodiversity', difficulty: 'Hard', points: 200, progress: 0, total: 1, deadline: '2026-09-05', status: 'not_started', color: '#16a34a' },
+  { id: 'm6', title: 'Biodiversity Explorer', icon: '🦋', description: 'Observe and document local species and habitats.', topic: 'Biodiversity', difficulty: 'Hard', points: 150, progress: 6, total: 10, deadline: '2026-09-10', status: 'in_progress', color: '#a855f7' },
+];
+
 export default function MissionsPage() {
-  const { user } = useAuth();
+  const { user, addPoints } = useAuth();
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
-  const [missions, setMissions] = useState(mockMissions);
+  const [missions, setMissions] = useState(fallbackMissions);
+
+  useEffect(() => {
+    let active = true;
+    missionsAPI.getAll()
+      .then((res) => {
+        if (!active) return;
+        const next = (res.data || []).map((mission) => ({
+          id: mission.id,
+          title: mission.title,
+          icon: mission.icon || ['♻️', '💧', '🌳', '🦋'][Number(mission.id?.replace(/\D/g, '') || 1) % 4],
+          description: mission.description || `${mission.topic || 'Environmental'} mission`,
+          topic: mission.topic || 'Sustainability',
+          difficulty: mission.difficulty || 'Medium',
+          points: Number(mission.points || 0),
+          progress: Number(mission.progress || 0),
+          total: Number(mission.total || 1),
+          deadline: mission.deadline || '2026-09-15',
+          status: mission.status || 'not_started',
+          color: mission.color || '#22c55e',
+          verificationRequired: Boolean(mission.verificationRequired ?? true),
+        }));
+        if (next.length) setMissions(next);
+      })
+      .catch(() => {
+        setMissions(fallbackMissions);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const startMission = (id) => {
     setMissions(prev => prev.map(m =>
@@ -457,15 +545,37 @@ export default function MissionsPage() {
 
   // Merge teacher-assigned tasks into the missions list
   const [teacherTasks, setTeacherTasks] = useState([]);
-  useEffect(() => {
-    const classId = user?.className || '8-A';
+  const refreshTeacherTasks = () => {
+    const classId = user?.className || user?.classId || '8-A';
     tasksAPI.getByClass(classId)
       .then(res => {
         const tasks = (res.data || []).filter(t => t.status !== 'completed');
         setTeacherTasks(tasks.map(taskToMission));
       })
       .catch(() => {});
-  }, [user]);
+  };
+
+  useEffect(() => {
+    refreshTeacherTasks();
+
+    const handleTaskRefresh = () => refreshTeacherTasks();
+    const handleStorageRefresh = (event) => {
+      if (event.key === 'gengreen_task_refresh') refreshTeacherTasks();
+    };
+    const handleVisibility = () => {
+      if (!document.hidden) refreshTeacherTasks();
+    };
+
+    window.addEventListener('gengreen-task-refresh', handleTaskRefresh);
+    window.addEventListener('storage', handleStorageRefresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('gengreen-task-refresh', handleTaskRefresh);
+      window.removeEventListener('storage', handleStorageRefresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [user?.className, user?.classId]);
 
   // Teacher tasks shown first (with a badge), then regular missions
   const allMissions = [...teacherTasks, ...missions];
@@ -568,9 +678,6 @@ export default function MissionsPage() {
             mission={submitMission}
             onClose={() => setSubmitMission(null)}
             onVerified={(id, aiResult) => {
-              // POST the verified result to the server so it appears in the
-              // teacher's verification queue. Fire-and-forget — a POST failure
-              // should never block the student from seeing their result.
               submissionsAPI.create({
                 studentName:        user?.name || 'Student',
                 missionTitle:       submitMission.title,
@@ -581,6 +688,7 @@ export default function MissionsPage() {
                 detectedItems:      aiResult?.detected_objects ?? [],
               }).catch(() => {});
               completeMission(id);
+              if (submitMission?.points) addPoints(Number(submitMission.points));
               setSubmitMission(null);
             }}
           />
