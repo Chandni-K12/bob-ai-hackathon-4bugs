@@ -3,11 +3,6 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mockTopics } from '../../data/mockData';
 import { useAuth } from '../../context/AuthContext';
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { topicsAPI } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Clock, Award, ChevronRight, Search, Filter } from 'lucide-react';
 
 import {
   BookOpen,
@@ -492,30 +487,8 @@ function getLessonData(topicName, lessonIndex) {
   };
 }
 
-const fallbackTopics = [
-  { id: 'tp1', name: 'Climate Change', icon: '🌡️', description: 'Understanding global warming and climate action', difficulty: 'Intermediate', lessons: 10, completedLessons: 7, progress: 70, quizAvailable: true, points: 150, estimatedTime: '4 hrs', color: '#ef4444' },
-  { id: 'tp2', name: 'Waste Management', icon: '♻️', description: 'Learn about segregation, recycling, and composting', difficulty: 'Beginner', lessons: 8, completedLessons: 6, progress: 72, quizAvailable: true, points: 100, estimatedTime: '3 hrs', color: '#22c55e' },
-  { id: 'tp3', name: 'Water Conservation', icon: '💧', description: 'Water cycle and conservation methods', difficulty: 'Intermediate', lessons: 8, completedLessons: 4, progress: 50, quizAvailable: true, points: 120, estimatedTime: '3.5 hrs', color: '#3b82f6' },
-  { id: 'tp4', name: 'Biodiversity', icon: '🦋', description: 'Flora, fauna, and ecosystem protection', difficulty: 'Advanced', lessons: 12, completedLessons: 5, progress: 42, quizAvailable: false, points: 200, estimatedTime: '5 hrs', color: '#a855f7' },
-];
-
-const normalizeTopic = (topic, index) => ({
-  id: topic.id || `tp-${index + 1}`,
-  name: topic.name || 'Topic',
-  icon: topic.icon || ['🌡️', '♻️', '💧', '🦋'][index % 4],
-  description: topic.description || `${topic.name || 'Environmental'} topic overview`,
-  difficulty: topic.difficulty || 'Beginner',
-  lessons: Number(topic.lessons || 6),
-  completedLessons: Number(topic.completedLessons || 0),
-  progress: Number(topic.progress || 0),
-  quizAvailable: Boolean(topic.quizAvailable ?? true),
-  points: Number(topic.points || 100),
-  estimatedTime: topic.estimatedTime || '2 hrs',
-  color: topic.color || ['#ef4444', '#22c55e', '#3b82f6', '#a855f7'][index % 4],
-});
-
 export default function LearnPage() {
-  const { user } = useAuth();
+  const { user, addPoints } = useAuth();
   const studentId = user?.id || 'u1';
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -607,43 +580,6 @@ export default function LearnPage() {
       (statusFilter === 'not_started' && topic.progress === 0);
 
     return matchesSearch && matchesLevel && matchesStatus;
-  const { addPoints } = useAuth();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [selectedTopic, setSelectedTopic] = useState(null);
-  const [topics, setTopics] = useState(fallbackTopics);
-  const recommendedTopic = searchParams.get('topic')?.trim().toLowerCase();
-
-  useEffect(() => {
-    let active = true;
-    topicsAPI.getAll()
-      .then((res) => {
-        if (!active) return;
-        const next = (res.data || []).map(normalizeTopic);
-        if (next.length) setTopics(next);
-      })
-      .catch(() => {
-        if (active) setTopics(fallbackTopics);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!recommendedTopic) return;
-    const matchingTopic = topics.find((topic) => {
-      const name = topic.name.toLowerCase();
-      return name === recommendedTopic || recommendedTopic.includes(name) || name.includes(recommendedTopic);
-    });
-    if (matchingTopic) setSelectedTopic(matchingTopic);
-  }, [recommendedTopic, topics]);
-
-  const filtered = topics.filter((t) => {
-    const matchSearch = t.name.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'all' || (filter === 'completed' && t.progress === 100) || (filter === 'in_progress' && t.progress > 0 && t.progress < 100) || (filter === 'not_started' && t.progress === 0);
-    return matchSearch && matchFilter;
   });
 
   const handleSelectTopic = (topic) => {
@@ -726,6 +662,10 @@ export default function LearnPage() {
       })
     }).catch(err => console.log('DB save error:', err.message));
 
+    if (addPoints) {
+      addPoints(20, 'lesson');
+    }
+
     setActiveLessonModal(null);
     setShowRewardToast(`🎉 Lesson ${lessonIndex + 1} Completed & Saved to Database (+20 Eco Pts)!`);
     setTimeout(() => setShowRewardToast(null), 3500);
@@ -769,23 +709,6 @@ export default function LearnPage() {
         <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-4 py-2 rounded-2xl text-emerald-700 dark:text-emerald-300 text-xs font-bold shadow-xs">
           <Flame className="w-4 h-4 text-amber-500" />
           <span>9 Eco Units • 70+ Leveled Lessons</span>
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">
-      <motion.div variants={item}>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><BookOpen className="w-6 h-6 text-primary" /> Environmental Learning</h1>
-        <p className="text-sm text-muted-foreground mt-1">Explore environmental topics and complete lessons to earn Eco Points</p>
-      </motion.div>
-
-      <motion.div variants={item} className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary border border-border focus:border-primary outline-none text-sm" placeholder="Search topics..." />
-        </div>
-        <div className="flex gap-2">
-          {['all', 'in_progress', 'completed', 'not_started'].map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-lg text-xs font-medium capitalize transition ${filter === f ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
-              {f.replace('_', ' ')}
-            </button>
-          ))}
         </div>
       </motion.div>
 
@@ -890,22 +813,6 @@ export default function LearnPage() {
                   <p className="text-xs text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
                     {topic.description}
                   </p>
-        <motion.div variants={container} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((topic) => (
-            <motion.div key={topic.id} variants={item} whileHover={{ scale: 1.02, y: -2 }} onClick={() => setSelectedTopic(topic)} className="glass rounded-xl p-5 cursor-pointer group hover:border-primary/20 transition-all relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10" style={{ background: topic.color }} />
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-3xl">{topic.icon}</span>
-                <div>
-                  <h3 className="font-semibold">{topic.name}</h3>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-secondary" style={{ color: topic.color }}>{topic.difficulty}</span>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{topic.description}</p>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Progress</span><span className="font-medium text-foreground">{topic.progress}%</span></div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${topic.progress}%` }} transition={{ duration: 1 }} className="h-full rounded-full" style={{ background: topic.color }} />
                 </div>
 
                 <div className="space-y-2.5 pt-2 border-t border-border/40">
@@ -1005,28 +912,6 @@ export default function LearnPage() {
                   <span className="text-xl font-black text-amber-300 flex items-center gap-1">
                     <Sparkles className="w-4 h-4 fill-amber-300" /> +{selectedTopic.points} pts
                   </span>
-                <div className="flex items-center justify-between pt-1">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${topic.quizAvailable ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>Quiz {topic.quizAvailable ? 'Unlocked' : 'Locked'}</span>
-                  <span className="text-xs text-eco-green font-medium flex items-center gap-1"><Award className="w-3 h-3" />+{topic.points}</span>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      ) : (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <button onClick={() => setSelectedTopic(null)} className="text-sm text-muted-foreground hover:text-foreground transition mb-4 flex items-center gap-1">← Back to topics</button>
-          <div className="unit-banner mb-6" style={{ backgroundColor: selectedTopic.color || '#a855f7', borderColor: selectedTopic.color || '#a855f7', filter: 'brightness(0.95)' }}>
-            <div className="flex items-center gap-4">
-              <span className="text-5xl icon-3d icon-bounce">{selectedTopic.icon}</span>
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-white/80">Syllabus Topic Unit</span>
-                <h2 className="text-2xl font-bold text-white leading-tight">{selectedTopic.name}</h2>
-                <p className="text-sm text-white/90 mt-1">{selectedTopic.description}</p>
-                <div className="flex gap-3 mt-3">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">{selectedTopic.difficulty}</span>
-                  <span className="text-xs text-white/80 font-medium">{selectedTopic.estimatedTime}</span>
-                  <span className="text-xs text-white font-bold">💎 +{selectedTopic.points} pts</span>
                 </div>
                 <button
                   onClick={() => navigate(`/student/quiz`)}
@@ -1064,15 +949,6 @@ export default function LearnPage() {
             <h3 className="font-extrabold text-center mb-8 text-xs uppercase tracking-widest text-muted-foreground">
               Interactive Learning Path — Click Level Nodes to Study
             </h3>
-          <div className="glass rounded-xl p-6">
-            <div className="mb-8">
-              <div className="flex justify-between text-sm mb-2"><span>Overall Progress</span><span className="font-medium">{selectedTopic.progress}%</span></div>
-              <div className="h-3 bg-secondary rounded-full overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: `${selectedTopic.progress}%` }} transition={{ duration: 1 }} className="h-full rounded-full" style={{ background: selectedTopic.color }} /></div>
-            </div>
-
-            <h3 className="font-semibold text-center mb-10 text-lg uppercase tracking-wider text-slate-400">Learning Path</h3>
-            <div className="relative flex flex-col items-center gap-16 py-12 max-w-md mx-auto">
-              <div className="absolute top-4 bottom-12 w-2.5 bg-slate-700/80 rounded-full z-0" />
 
             {/* SNAKE LEVEL NODES */}
             <div className="relative flex flex-col items-center gap-14 py-8 max-w-md mx-auto">
@@ -1099,11 +975,6 @@ export default function LearnPage() {
                     className={`relative z-10 flex flex-col items-center ${marginClass}`}
                   >
                     {/* START Speech Bubble */}
-                const offsets = ['ml-0', 'mr-24', 'ml-24', 'ml-0', 'mr-24', 'ml-24'];
-                const marginClass = offsets[i % offsets.length];
-
-                return (
-                  <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className={`relative z-10 flex flex-col items-center ${marginClass}`}>
                     {active && (
                       <div className="absolute -top-12 bg-sky-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-xl shadow-md animate-bounce whitespace-nowrap z-20">
                         START LEVEL {i + 1}
@@ -1115,29 +986,12 @@ export default function LearnPage() {
                     <button
                       onClick={() => handleLessonClick(selectedTopic, i)}
                       className={`w-16 h-16 rounded-full flex items-center justify-center text-lg font-black border-4 shadow-md transition-all transform active:scale-95 ${
-                    <div
-                      className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold border-4 shadow-md transition-all ${
                         completed
                           ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 border-emerald-300 text-white border-b-6 shadow-emerald-500/20 hover:scale-110'
                           : active
                           ? 'bg-gradient-to-br from-sky-400 to-blue-600 border-sky-300 text-white border-b-6 ring-4 ring-sky-400/30 hover:scale-110'
                           : 'bg-card border-border/80 text-muted-foreground border-b-6 hover:border-slate-400 hover:scale-105'
-                          ? 'bg-eco-blue border-sky-600 text-white border-b-8 ring-4 ring-sky-500/20 active:translate-y-1 active:border-b-4 animate-pulse cursor-pointer'
-                          : 'bg-slate-800 border-slate-900 text-slate-500 cursor-not-allowed border-b-8'
                       }`}
-                      onClick={() => {
-                        if (active && addPoints) {
-                          addPoints(20, 'lesson');
-                          setTopics((current) => current.map((topic) => topic.id === selectedTopic.id
-                            ? { ...topic, completedLessons: topic.completedLessons + 1, progress: Math.min(100, Math.round(((topic.completedLessons + 1) / topic.lessons) * 100)) }
-                            : topic));
-                          setSelectedTopic((topic) => ({
-                            ...topic,
-                            completedLessons: topic.completedLessons + 1,
-                            progress: Math.min(100, Math.round(((topic.completedLessons + 1) / topic.lessons) * 100)),
-                          }));
-                        }
-                      }}
                     >
                       {completed ? <Check className="w-7 h-7 stroke-[3]" /> : locked ? <Lock className="w-5 h-5 text-muted-foreground" /> : i + 1}
                     </button>
@@ -1148,19 +1002,10 @@ export default function LearnPage() {
                         {lessonData.title}
                       </span>
                     </div>
-                      {completed ? '✓' : locked ? '🔒' : i + 1}
-                    </div>
-                    <div className="absolute -bottom-10 bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-0.5 shadow-sm text-[10px] font-bold text-slate-300 whitespace-nowrap">{lesson}</div>
                   </motion.div>
                 );
               })}
             </div>
-
-            {selectedTopic.quizAvailable && (
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mt-12 w-full py-3 rounded-xl gradient-primary text-white font-semibold flex items-center justify-center gap-2">
-                Take {selectedTopic.name} Quiz <ChevronRight className="w-4 h-4" />
-              </motion.button>
-            )}
           </div>
         </motion.div>
       )}
