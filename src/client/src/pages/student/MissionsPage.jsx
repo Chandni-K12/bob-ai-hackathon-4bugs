@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
 import { aiAPI, tasksAPI, submissionsAPI, missionsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { useSearchParams } from 'react-router-dom';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
