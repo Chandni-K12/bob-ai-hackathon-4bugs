@@ -176,6 +176,14 @@ export default function LearnPage() {
                       onClick={() => {
                         if (active && addPoints) {
                           addPoints(20, 'lesson');
+                          setTopics((current) => current.map((topic) => topic.id === selectedTopic.id
+                            ? { ...topic, completedLessons: topic.completedLessons + 1, progress: Math.min(100, Math.round(((topic.completedLessons + 1) / topic.lessons) * 100)) }
+                            : topic));
+                          setSelectedTopic((topic) => ({
+                            ...topic,
+                            completedLessons: topic.completedLessons + 1,
+                            progress: Math.min(100, Math.round(((topic.completedLessons + 1) / topic.lessons) * 100)),
+                          }));
                         }
                       }}
                     >
@@ -198,4 +206,3 @@ export default function LearnPage() {
     </motion.div>
   );
 }
-

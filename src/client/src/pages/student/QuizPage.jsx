@@ -86,23 +86,12 @@ export default function QuizPage() {
       setSelected(null);
       setAnswered(false);
     } else {
-      if (totalPoints > 0) {
-        addPoints(totalPoints);
-      }
-      setFinished(true);
-      // Credit earned points to user account
-      const earnedTotal = answers.reduce((acc, a) => {
-        if (a.correct) {
-          const q = selectedQuiz.questions.find(qq => qq.id === a.questionId);
-          return acc + (q?.points || 0);
-        }
-        return acc;
-      }, 0) + (correct ? (selectedQuiz.questions[currentQ]?.points || 0) : 0);
-      // Use current totalPoints + final question if correct
-      const finalPoints = totalPoints + (correct ? (selectedQuiz.questions[currentQ]?.points || 0) : 0);
+      const finalQuestion = selectedQuiz.questions[currentQ];
+      const finalPoints = totalPoints + (selected === finalQuestion.correct ? finalQuestion.points : 0);
       if (finalPoints > 0 && addPoints) {
         addPoints(finalPoints, 'quiz');
       }
+      setFinished(true);
     }
   };
 

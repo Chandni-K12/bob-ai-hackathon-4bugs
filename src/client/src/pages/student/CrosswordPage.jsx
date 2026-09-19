@@ -120,10 +120,8 @@ export default function CrosswordPage() {
 
     setScore(pct);
     setEarnedPoints(totalPoints);
-    if (totalPoints > 0) addPoints(totalPoints);
     setIsRevealed(false);
     setCompleted(true);
-    // Credit points to user account
     if (totalPoints > 0 && addPoints) {
       addPoints(totalPoints, 'crossword');
     }
