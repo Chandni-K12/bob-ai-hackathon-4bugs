@@ -85,10 +85,13 @@ class ChatResponse(BaseModel):
 
 TOPIC_KEYWORDS = {
     "tree_plantation": ["tree", "plant", "sapling", "garden", "leaf", "green", "nature", "soil", "flower", "forest", "seed", "sprout", "botany", "environment"],
+    "biodiversity": ["biodiversity", "species", "bird", "animal", "habitat", "flora", "fauna", "wildlife", "nature", "ecosystem", "forest", "insect", "leaf", "stream"],
     "waste_segregation": ["waste", "trash", "garbage", "recycle", "bin", "plastic", "paper", "segregat", "compost", "dustbin", "dry", "wet", "litter", "bottle"],
     "water_conservation": ["water", "tap", "faucet", "meter", "rain", "bucket", "conserve", "pipe", "leak", "drain", "tank", "harvest", "drop"],
     "clean_campus": ["clean", "campus", "school", "sweep", "mop", "broom", "group", "cleanup", "hall", "class", "yard", "tidy"],
     "green_transport": ["cycle", "bike", "walk", "path", "bus", "transit", "helmet", "pedal", "road", "track", "ride", "scooter"],
+    "energy_saving": ["energy", "electricity", "meter", "bulb", "led", "solar", "panel", "switch", "appliance", "audit", "power", "watt", "light", "fan", "saving"],
+    "composting": ["compost", "vermi", "worm", "organic", "decompose", "pit", "kitchen", "earthworm", "humus", "mulch", "bin"],
 }
 
 OFF_TOPIC_KEYWORDS = ["car", "laptop", "pizza", "burger", "food", "cat", "dog", "shoe", "phone", "game", "screenshot", "movie", "tv", "furniture", "couch", "person", "selfie", "document", "random", "test_bad", "offtopic", "unrelated", "invalid", "wrong", "junk", "bad", "fake", "fail", "dummy", "unknown", "notebook", "notes", "page", "book", "homework", "assignment", "study", "text", "writing", "pen", "pencil", "scan", "sheet", "copy", "register", "classwork", "receipt", "invoice"]
@@ -105,10 +108,13 @@ def root():
 
 _MISSION_KEYWORDS: dict[str, list[str]] = {
     "tree_plantation":    ["tree", "plant", "sapling", "soil", "garden", "leaf", "green", "pot", "seed", "nature"],
+    "biodiversity":       ["biodiversity", "species", "flora", "fauna", "habitat", "wildlife", "bird", "animal", "forest", "nature"],
     "waste_segregation":  ["waste", "trash", "bin", "garbage", "recycle", "paper", "plastic", "segregat", "compost", "dustbin"],
     "water_conservation": ["water", "tap", "faucet", "meter", "pipe", "rain", "harvest", "bucket", "tank", "drip"],
     "clean_campus":       ["clean", "broom", "sweep", "campus", "group", "litter", "bag", "collect", "mop"],
     "green_transport":    ["bicycle", "cycle", "walk", "bus", "carpool", "path", "ride", "pedal", "bike"],
+    "energy_saving":      ["energy", "electricity", "meter", "bulb", "led", "solar", "panel", "switch", "appliance", "audit", "power"],
+    "composting":         ["compost", "vermi", "worm", "organic", "decompose", "pit", "earthworm", "humus", "mulch"],
 }
 
 @app.post("/verify-image", response_model=VerifyImageResponse)
@@ -209,10 +215,13 @@ def verify_image(req: VerifyImageRequest):
     # --- Step 3: Deterministic confidence per mission type ---
     _mission_confidences = {
         "tree_plantation":    0.94,
+        "biodiversity":       0.90,
         "waste_segregation":  0.91,
         "water_conservation": 0.87,
         "clean_campus":       0.96,
         "green_transport":    0.89,
+        "energy_saving":      0.88,
+        "composting":         0.90,
     }
     base_conf = _mission_confidences.get(mission_type, round(random.uniform(0.75, 0.98), 2))
 
@@ -227,6 +236,10 @@ def verify_image(req: VerifyImageRequest):
     mission_responses = {
         "tree_plantation": {
             "detected_objects": ["Tree sapling", "Soil", "Gardening tools"],
+            "confidence": base_conf,
+        },
+        "biodiversity": {
+            "detected_objects": ["Flora / fauna", "Natural habitat", "Species observation"],
             "confidence": base_conf,
         },
         "waste_segregation": {
@@ -248,6 +261,14 @@ def verify_image(req: VerifyImageRequest):
         },
         "green_transport": {
             "detected_objects": ["Bicycle", "Walking path"],
+            "confidence": base_conf,
+        },
+        "energy_saving": {
+            "detected_objects": ["Electricity meter", "LED lights", "Switched-off appliances"],
+            "confidence": base_conf,
+        },
+        "composting": {
+            "detected_objects": ["Compost pit", "Organic waste", "Earthworms / soil"],
             "confidence": base_conf,
         },
     }

@@ -19,7 +19,6 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('eco_token');
-      localStorage.removeItem('eco_user');
       window.location.href = '/login';
     }
     return Promise.reject(err);

@@ -6,7 +6,6 @@ import {
   LayoutDashboard, BookOpen, HelpCircle, Puzzle, Target,
   Bot, Trophy, Award, User, Bell, LogOut, Menu, X, Leaf
 } from 'lucide-react';
-import { mockNotifications } from '../data/mockData';
 
 const navItems = [
   { to: '/student', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -25,6 +24,7 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifications = user?.notifications ?? [];
 
   const handleLogout = () => {
     logout();
@@ -213,12 +213,14 @@ export default function StudentLayout() {
               <div className="p-3 border-b border-border">
                 <h3 className="font-semibold text-sm">Notifications</h3>
               </div>
-              {mockNotifications.map(n => (
-                <div key={n.id} className={`p-3 border-b border-border/50 flex gap-3 ${!n.read ? 'bg-primary/5' : ''}`}>
-                  <span className="text-xl">{n.icon}</span>
+              {notifications.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">No new notifications.</div>
+              ) : notifications.map((notification) => (
+                <div key={notification.id ?? `${notification.message}-${notification.time}`} className={`p-3 border-b border-border/50 flex gap-3 ${!notification.read ? 'bg-primary/5' : ''}`}>
+                  <span className="text-xl">{notification.icon ?? '🌿'}</span>
                   <div>
-                    <p className="text-sm">{n.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{n.time}</p>
+                    <p className="text-sm">{notification.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
                   </div>
                 </div>
               ))}
