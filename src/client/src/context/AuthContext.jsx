@@ -1,6 +1,25 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { mockUsers } from '../data/mockData';
+import { authAPI } from '../services/api';
+
+const normalizeUser = (payload) => {
+  const user = payload?.user ?? payload ?? {};
+  return {
+    ...user,
+    id: user.id,
+    name: user.name || 'Student',
+    email: user.email || '',
+    role: user.role || 'student',
+    classId: user.classId || user.class_id || user.className || 'c1',
+    className: user.className || user.class_name || user.class || '8-A',
+    schoolId: user.schoolId || user.school_id || 's1',
+    schoolName: user.schoolName || user.school_name || user.school || 'Green Valley School',
+    points: Number(user.points ?? 0),
+    streak: Number(user.streak ?? 0),
+    level: Number(user.level ?? 1),
+    badges: Number(user.badges ?? 0),
+    avatar: user.avatar || (user.role === 'teacher' ? '👩‍🏫' : user.role === 'organizer' ? '👩‍💼' : '🌿'),
+  };
+};
 
 const AuthContext = createContext(null);
 
@@ -12,33 +31,37 @@ export function AuthProvider({ children }) {
     const stored = localStorage.getItem('eco_user');
     if (stored) {
       try {
-        setUser(JSON.parse(stored));
-      } catch { localStorage.removeItem('eco_user'); }
+        const parsed = normalizeUser(JSON.parse(stored));
+        setUser(parsed);
+      } catch {
+        localStorage.removeItem('eco_user');
+      }
     }
+
+    const token = localStorage.getItem('eco_token');
+    if (!stored && token) {
+      authAPI.getProfile()
+        .then((res) => {
+          const nextUser = normalizeUser(res.data);
+          localStorage.setItem('eco_user', JSON.stringify(nextUser));
+          setUser(nextUser);
+        })
+        .catch(() => {
+          localStorage.removeItem('eco_token');
+          setUser(null);
+        });
+    }
+
     setLoading(false);
   }, []);
 
   const login = useCallback(async (email, password, role) => {
-    // Mock login — find user by email and role
-    const found = mockUsers.find(
-      u => u.email === email && u.role === role
-    );
-    if (!found) {
-      // For demo: allow login with any email if role matches a default user
-      const defaultUser = mockUsers.find(u => u.role === role);
-      if (defaultUser) {
-        const userData = { ...defaultUser, email };
-        localStorage.setItem('eco_token', 'mock_jwt_' + Date.now());
-        localStorage.setItem('eco_user', JSON.stringify(userData));
-        setUser(userData);
-        return userData;
-      }
-      throw new Error('Invalid credentials');
-    }
-    localStorage.setItem('eco_token', 'mock_jwt_' + Date.now());
-    localStorage.setItem('eco_user', JSON.stringify(found));
-    setUser(found);
-    return found;
+    const response = await authAPI.login({ email, password, role });
+    const userData = normalizeUser(response.data.user ?? response.data);
+    localStorage.setItem('eco_token', response.data.token || 'mock_jwt_' + Date.now());
+    localStorage.setItem('eco_user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
   }, []);
 
   const logout = useCallback(() => {

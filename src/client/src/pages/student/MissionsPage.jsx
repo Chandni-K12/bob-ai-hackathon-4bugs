@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockMissions } from '../../data/mockData';
-import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, Filter, AlertTriangle, ClipboardList } from 'lucide-react';
-import { aiAPI, tasksAPI } from '../../services/api';
+import { Target, Upload, MapPin, Camera, CheckCircle2, Clock, Shield, X, ChevronRight, AlertTriangle, ClipboardList } from 'lucide-react';
+import { aiAPI, tasksAPI, missionsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
@@ -488,11 +487,49 @@ function taskToMission(t) {
   };
 }
 
+const fallbackMissions = [
+  { id: 'm1', title: 'Plastic-Free Week', icon: '♻️', description: 'Avoid single-use plastics for 7 days and track your impact.', topic: 'Waste Management', difficulty: 'Easy', points: 100, progress: 2, total: 7, deadline: '2026-08-30', status: 'in_progress', color: '#22c55e' },
+  { id: 'm2', title: 'Water Saver', icon: '💧', description: 'Track daily water-saving habits and reduce unnecessary consumption.', topic: 'Water Conservation', difficulty: 'Medium', points: 75, progress: 3, total: 5, deadline: '2026-08-23', status: 'in_progress', color: '#3b82f6' },
+  { id: 'm5', title: 'Plant a Tree', icon: '🌳', description: 'Plant and document a sapling in your neighborhood or school area.', topic: 'Biodiversity', difficulty: 'Hard', points: 200, progress: 0, total: 1, deadline: '2026-09-05', status: 'not_started', color: '#16a34a' },
+  { id: 'm6', title: 'Biodiversity Explorer', icon: '🦋', description: 'Observe and document local species and habitats.', topic: 'Biodiversity', difficulty: 'Hard', points: 150, progress: 6, total: 10, deadline: '2026-09-10', status: 'in_progress', color: '#a855f7' },
+];
+
 export default function MissionsPage() {
   const { user } = useAuth();
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
-  const [missions, setMissions] = useState(mockMissions);
+  const [missions, setMissions] = useState(fallbackMissions);
+
+  useEffect(() => {
+    let active = true;
+    missionsAPI.getAll()
+      .then((res) => {
+        if (!active) return;
+        const next = (res.data || []).map((mission) => ({
+          id: mission.id,
+          title: mission.title,
+          icon: mission.icon || ['♻️', '💧', '🌳', '🦋'][Number(mission.id?.replace(/\D/g, '') || 1) % 4],
+          description: mission.description || `${mission.topic || 'Environmental'} mission`,
+          topic: mission.topic || 'Sustainability',
+          difficulty: mission.difficulty || 'Medium',
+          points: Number(mission.points || 0),
+          progress: Number(mission.progress || 0),
+          total: Number(mission.total || 1),
+          deadline: mission.deadline || '2026-09-15',
+          status: mission.status || 'not_started',
+          color: mission.color || '#22c55e',
+          verificationRequired: Boolean(mission.verificationRequired ?? true),
+        }));
+        if (next.length) setMissions(next);
+      })
+      .catch(() => {
+        setMissions(fallbackMissions);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const startMission = (id) => {
     setMissions(prev => prev.map(m =>
