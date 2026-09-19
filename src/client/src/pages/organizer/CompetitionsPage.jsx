@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { mockCompetitions, mockSchools } from '../../data/mockData';
+import { competitionsAPI } from '../../services/api';
 import { formatNumber } from '../../lib/utils';
 import { Trophy, Plus, Calendar, Users, Target, CheckCircle2, X } from 'lucide-react';
 
@@ -15,17 +15,55 @@ const statusColors = {
 
 export default function CompetitionsPage() {
   const [showCreate, setShowCreate] = useState(false);
-  const [competitions, setCompetitions] = useState(mockCompetitions);
+  const [competitions, setCompetitions] = useState([]);
   const [created, setCreated] = useState(false);
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '', missions: 10, description: '' });
 
-  const handleCreate = (e) => {
-    e.preventDefault();
-    setCompetitions([...competitions, {
-      id: `comp${competitions.length + 1}`, ...form, schools: 0, students: 0, status: 'upcoming',
-    }]);
-    setCreated(true);
-    setTimeout(() => { setCreated(false); setShowCreate(false); setForm({ name: '', startDate: '', endDate: '', missions: 10, description: '' }); }, 2000);
+  useEffect(() => {
+    competitionsAPI.getAll()
+      .then((response) => setCompetitions(response.data || []))
+      .catch((error) => {
+        console.error('Failed to load competitions:', error);
+        setCompetitions([]);
+      });
+  }, []);
+
+  const handleCreate = (event) => {
+    event.preventDefault();
+
+    competitionsAPI.create({
+      name: form.name,
+      description: form.description,
+      status: 'upcoming',
+      schools: 0,
+      students: 0,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      missions: Number(form.missions) || 10,
+    })
+      .then((response) => {
+        const createdCompetition = response.data?.competition || {
+          id: `comp-${Date.now()}`,
+          name: form.name,
+          description: form.description,
+          status: 'upcoming',
+          schools: 0,
+          students: 0,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          missions: Number(form.missions) || 10,
+        };
+        setCompetitions((current) => [createdCompetition, ...current]);
+        setCreated(true);
+        setTimeout(() => {
+          setCreated(false);
+          setShowCreate(false);
+          setForm({ name: '', startDate: '', endDate: '', missions: 10, description: '' });
+        }, 2000);
+      })
+      .catch((error) => {
+        console.error('Failed to create competition:', error);
+      });
   };
 
   return (

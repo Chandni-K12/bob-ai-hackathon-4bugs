@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'organizer')),
   school_id TEXT REFERENCES schools(id),
   class_id TEXT REFERENCES classes(id),
+  city TEXT,
+  institution_type TEXT CHECK (institution_type IN ('school', 'college', NULL)),
   points INTEGER DEFAULT 0,
   streak INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,

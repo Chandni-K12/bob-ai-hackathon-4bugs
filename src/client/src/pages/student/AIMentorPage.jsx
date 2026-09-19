@@ -1,11 +1,27 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockAIRecommendation } from '../../data/mockData';
 import {
   Bot, TrendingUp, TrendingDown, Minus, BookOpen, Target, Sparkles,
   ChevronRight, BrainCircuit, Send, Trash2, MessageSquare, Lightbulb, X, MessageCircle
 } from 'lucide-react';
 import { aiAPI } from '../../services/api';
+
+const fallbackRecommendation = {
+  weakTopics: [
+    { topic: 'Climate Change', score: 58, status: 'Needs Improvement' },
+    { topic: 'Waste Management', score: 64, status: 'Good' },
+  ],
+  goodTopics: [
+    { topic: 'Water Conservation', score: 72, status: 'Good' },
+  ],
+  strongTopics: [
+    { topic: 'Biodiversity', score: 86, status: 'Strong' },
+  ],
+  recommendedLesson: { title: 'Water Conservation Basics', reason: 'Improve daily water-saving habits and leak prevention.' },
+  recommendedMission: { title: 'Water Saver', reason: 'Track and reduce unnecessary water use at school and home.' },
+  recommendedTopic: 'Water Conservation',
+  learningStyle: 'Hands-on, visual, and reflection-based learning',
+};
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
@@ -117,7 +133,7 @@ const extractCountFromQuery = (query, defaultVal = 3) => {
 };
 
 export default function AIMentorPage() {
-  const [rec, setRec] = useState(mockAIRecommendation);
+  const [rec, setRec] = useState(fallbackRecommendation);
   const [recLoading, setRecLoading] = useState(true);
   const [chatOpen, setChatOpen] = useState(false); // Floating Chatbot closed by default
 
@@ -125,36 +141,33 @@ export default function AIMentorPage() {
   useEffect(() => {
     const payload = {
       student_id: 'demo_student',
-      topic_scores: mockAIRecommendation.weakTopics
-        .concat(mockAIRecommendation.goodTopics)
-        .concat(mockAIRecommendation.strongTopics)
-        .map(t => ({ topic: t.topic, score: t.score })),
-      completed_lessons: [mockAIRecommendation.recommendedLesson.title],
-      mission_activity: [mockAIRecommendation.recommendedMission.title],
+      topic_scores: fallbackRecommendation.weakTopics
+        .concat(fallbackRecommendation.goodTopics)
+        .concat(fallbackRecommendation.strongTopics)
+        .map((t) => ({ topic: t.topic, score: t.score })),
+      completed_lessons: [fallbackRecommendation.recommendedLesson.title],
+      mission_activity: [fallbackRecommendation.recommendedMission.title],
     };
 
     aiAPI.personalizeLearning(payload)
-      .then(res => {
-        const data = res.data;
-        if (data && data.recommended_topic) {
-          // Map the flat AI response back into the rec shape the UI expects.
-          setRec(prev => ({
+      .then((res) => {
+        const SENTINEL = 'Unable to personalise right now';
+        if (data && data.recommended_topic && data.recommended_topic !== SENTINEL) {
+          setRec((prev) => ({
             ...prev,
-            recommendedLesson: {
-              title: data.recommended_topic,
-              reason: data.reason,
-            },
-            recommendedMission: {
-              title: data.recommended_mission,
-              reason: data.reason,
-            },
+            recommendedLesson: { title: data.recommended_topic, reason: data.reason },
+            recommendedMission: { title: data.recommended_mission, reason: data.reason },
             recommendedTopic: data.recommended_topic,
             learningStyle: data.learning_style,
           }));
+        } else if (data && data.recommended_topic === SENTINEL) {
+          // AI service returned its explicit fallback — keep mock recommendation
+          // untouched and surface a non-blocking note in the UI.
+          setRec(prev => ({ ...prev, _liveUnavailable: true }));
         }
       })
       .catch(() => {
-        // AI service unavailable — keep the mock data already in state.
+        // AI service unavailable — keep the built-in fallback recommendation.
       })
       .finally(() => setRecLoading(false));
   }, []);
@@ -356,6 +369,15 @@ export default function AIMentorPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Live-personalisation unavailable notice */}
+      {rec._liveUnavailable && (
+        <motion.div variants={item}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-eco-amber/10 border border-eco-amber/30 text-xs text-eco-amber">
+          <span>⚠️</span>
+          <span>Live personalisation is temporarily unavailable — showing your default recommendations.</span>
+        </motion.div>
+      )}
 
       {/* Recommended Lesson */}
       <motion.div variants={item} className="glass rounded-xl p-6 border-l-4 border-eco-blue">
