@@ -87,6 +87,33 @@ const getPendingSubmissionCount = async () => {
   }
 };
 
+const DEMO_USERS = {
+  'ananya@student.eco': { id: 'u1', name: 'Ananya Sharma', email: 'ananya@student.eco', role: 'student', schoolId: 's1', classId: 'c1', className: '8-A', schoolName: 'Green Valley School', points: 2450, streak: 5, level: 12, badges: 12, avatar: '🌿' },
+  'meera@teacher.eco': { id: 't1', name: 'Dr. Meera Reddy', email: 'meera@teacher.eco', role: 'teacher', schoolId: 's1', classId: 'c1', className: '8-A', schoolName: 'Green Valley School', avatar: '👩‍🏫' },
+  'lakshmi@organizer.eco': { id: 'o1', name: 'Mrs. Lakshmi Menon', email: 'lakshmi@organizer.eco', role: 'organizer', avatar: '👩‍💼' },
+};
+
+const resolveAuthUser = (email, role) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedRole = String(role || '').trim().toLowerCase();
+
+  const demoUser = DEMO_USERS[normalizedEmail];
+  if (demoUser && demoUser.role === normalizedRole) {
+    return { token: 'demo_jwt_' + Date.now(), user: demoUser };
+  }
+
+  const persistedUser = users.find(u =>
+    String(u.email || '').trim().toLowerCase() === normalizedEmail &&
+    String(u.role || '').trim().toLowerCase() === normalizedRole
+  );
+
+  if (persistedUser) {
+    return { token: 'mock_jwt_' + Date.now(), user: persistedUser };
+  }
+
+  return null;
+};
+
 // --- MOCK DATA ---
 const users = [
   { id: 'u1', name: 'Ananya Sharma', email: 'ananya@student.eco', password: '$2b$10$mockhashedpassword', role: 'student', schoolId: 's1', classId: 'c1', points: 2450, streak: 5, level: 12, badges: 12 },
@@ -97,19 +124,30 @@ const users = [
 // --- DATABASE ROUTES ---
 // These handlers run first. If the database is unavailable, the mock routes below answer.
 app.post('/api/auth/login', async (req, res, next) => {
-  if (!db.hasDatabase) return next();
+  const { email, role } = req.body || {};
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedRole = String(role || '').trim().toLowerCase();
+
+  const directUser = resolveAuthUser(normalizedEmail, normalizedRole);
+  if (directUser) {
+    return res.json(directUser);
+  }
+
+  if (!db.hasDatabase) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
   try {
-    const { email, role } = req.body;
     const result = await db.query(
       'SELECT * FROM users WHERE email = $1 AND role = $2 LIMIT 1',
-      [email, role]
+      [normalizedEmail, normalizedRole]
     );
     const user = mapUserRow(result.rows[0]);
-    if (!user) return next();
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     return res.json({ token: 'mock_jwt_' + Date.now(), user });
   } catch (err) {
     console.log('DB auth fallback:', err.message);
-    return next();
+    return res.status(401).json({ error: 'Invalid credentials' });
   }
 });
 
@@ -180,6 +218,54 @@ app.get('/api/users/:id', async (req, res, next) => {
     return res.json(user || { error: 'Not found' });
   } catch (err) {
     console.log('DB user fallback:', err.message);
+    return next();
+  }
+});
+
+app.put('/api/users/:id', async (req, res, next) => {
+  if (!db.hasDatabase) return next();
+
+  const payload = { ...req.body };
+  const fieldMap = {
+    id: 'id',
+    name: 'name',
+    email: 'email',
+    role: 'role',
+    schoolId: 'school_id',
+    classId: 'class_id',
+    points: 'points',
+    streak: 'streak',
+    level: 'level',
+    badges: 'badges',
+    school_id: 'school_id',
+    class_id: 'class_id',
+  };
+
+  const updates = Object.entries(payload).reduce((acc, [key, value]) => {
+    const dbKey = fieldMap[key];
+    if (dbKey && key !== 'id') acc[dbKey] = value;
+    return acc;
+  }, {});
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No valid user fields supplied' });
+  }
+
+  try {
+    const assignments = Object.keys(updates).map((key, index) => `${key} = $${index + 1}`).join(', ');
+    const values = Object.values(updates);
+    const result = await db.query(
+      `UPDATE users SET ${assignments} WHERE id = $${values.length + 1} RETURNING *`,
+      [...values, req.params.id]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ success: true, user: mapUserRow(result.rows[0]) });
+  } catch (err) {
+    console.log('DB user update failed:', err.message);
     return next();
   }
 });
@@ -312,25 +398,49 @@ app.get('/api/badges', async (req, res, next) => {
 });
 
 app.get('/api/tasks', async (req, res, next) => {
-  if (!db.hasDatabase) return next();
+  const { classId } = req.query;
+
+  if (!db.hasDatabase) {
+    const filtered = classId ? tasks.filter(t => t.classId === classId) : tasks;
+    return res.json(filtered);
+  }
+
   try {
-    const { classId } = req.query;
     const result = classId
       ? await db.query('SELECT * FROM tasks WHERE class_id = $1 ORDER BY deadline NULLS LAST, id', [classId])
       : await db.query('SELECT * FROM tasks ORDER BY deadline NULLS LAST, id');
     return res.json(result.rows.map(mapTaskRow));
   } catch (err) {
     console.log('DB tasks fallback:', err.message);
-    return next();
+    const filtered = classId ? tasks.filter(t => t.classId === classId) : tasks;
+    return res.json(filtered);
   }
 });
 
 app.post('/api/tasks', async (req, res, next) => {
-  if (!db.hasDatabase) return next();
-  const { classId, syllabus, envTopic, task, difficulty, deadline, points } = req.body;
+  const { classId, syllabus, envTopic, task, difficulty, deadline, points } = req.body || {};
   if (!classId || !task) {
     return res.status(400).json({ error: 'classId and task are required' });
   }
+
+  if (!db.hasDatabase) {
+    const newTask = {
+      id: 't' + Date.now(),
+      classId,
+      syllabus: syllabus || '',
+      envTopic: envTopic || '',
+      task,
+      difficulty: difficulty || 'Medium',
+      deadline: deadline || '',
+      points: Number(points) || 100,
+      status: 'assigned',
+      students: 40,
+      completed: 0,
+    };
+    tasks.push(newTask);
+    return res.status(201).json(newTask);
+  }
+
   try {
     const id = 't' + Date.now();
     const result = await db.query(
@@ -340,7 +450,21 @@ app.post('/api/tasks', async (req, res, next) => {
     return res.status(201).json(mapTaskRow(result.rows[0]));
   } catch (err) {
     console.log('DB create task fallback:', err.message);
-    return next();
+    const newTask = {
+      id: 't' + Date.now(),
+      classId,
+      syllabus: syllabus || '',
+      envTopic: envTopic || '',
+      task,
+      difficulty: difficulty || 'Medium',
+      deadline: deadline || '',
+      points: Number(points) || 100,
+      status: 'assigned',
+      students: 40,
+      completed: 0,
+    };
+    tasks.push(newTask);
+    return res.status(201).json(newTask);
   }
 });
 
@@ -381,16 +505,14 @@ app.get('/api/analytics/class/:id', async (req, res, next) => {
 
 // --- AUTH ROUTES ---
 app.post('/api/auth/login', (req, res) => {
-  const { email, role } = req.body;
-  const user = users.find(u => u.email === email && u.role === role);
-  if (!user) {
-    const defaultUser = users.find(u => u.role === role);
-    if (defaultUser) {
-      return res.json({ token: 'mock_jwt_' + Date.now(), user: { ...defaultUser, email } });
-    }
+  const { email, role } = req.body || {};
+  const directUser = resolveAuthUser(email, role);
+
+  if (!directUser) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  res.json({ token: 'mock_jwt_' + Date.now(), user });
+
+  return res.json(directUser);
 });
 
 app.get('/api/auth/profile', (req, res) => {
@@ -848,37 +970,7 @@ const tasks = [
   { id: 't4', classId: '8-A', syllabus: 'Pollution',          envTopic: 'Waste Management',    task: 'Waste Segregation Challenge',      deadline: '2026-08-20', points:  80, difficulty: 'Easy',   status: 'completed',   students: 40, completed: 40 },
 ];
 
-// GET /api/tasks?classId=8-A  → returns tasks for that class
-app.get('/api/tasks', (req, res) => {
-  const { classId } = req.query;
-  if (classId) {
-    return res.json(tasks.filter(t => t.classId === classId));
-  }
-  res.json(tasks);
-});
-
-// POST /api/tasks  → teacher assigns a new task; stored in memory
-app.post('/api/tasks', (req, res) => {
-  const { classId, syllabus, envTopic, task, difficulty, deadline, points } = req.body;
-  if (!classId || !task) {
-    return res.status(400).json({ error: 'classId and task are required' });
-  }
-  const newTask = {
-    id: 't' + (tasks.length + 1) + '_' + Date.now(),
-    classId,
-    syllabus:    syllabus    || '',
-    envTopic:    envTopic    || '',
-    task,
-    difficulty:  difficulty  || 'Medium',
-    deadline:    deadline    || '',
-    points:      Number(points) || 100,
-    status:      'assigned',
-    students:    40,
-    completed:   0,
-  };
-  tasks.push(newTask);
-  res.status(201).json(newTask);
-});
+// Task storage is handled by the DB-first route above so there is only one source of truth.
 
 // --- ANALYTICS ---
 app.get('/api/analytics/platform', (req, res) => {

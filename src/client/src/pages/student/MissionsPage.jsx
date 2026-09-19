@@ -495,7 +495,7 @@ const fallbackMissions = [
 ];
 
 export default function MissionsPage() {
-  const { user } = useAuth();
+  const { user, addPoints } = useAuth();
   const [filter, setFilter] = useState('all');
   const [submitMission, setSubmitMission] = useState(null);
   const [missions, setMissions] = useState(fallbackMissions);
@@ -545,15 +545,37 @@ export default function MissionsPage() {
 
   // Merge teacher-assigned tasks into the missions list
   const [teacherTasks, setTeacherTasks] = useState([]);
-  useEffect(() => {
-    const classId = user?.className || '8-A';
+  const refreshTeacherTasks = () => {
+    const classId = user?.className || user?.classId || '8-A';
     tasksAPI.getByClass(classId)
       .then(res => {
         const tasks = (res.data || []).filter(t => t.status !== 'completed');
         setTeacherTasks(tasks.map(taskToMission));
       })
       .catch(() => {});
-  }, [user]);
+  };
+
+  useEffect(() => {
+    refreshTeacherTasks();
+
+    const handleTaskRefresh = () => refreshTeacherTasks();
+    const handleStorageRefresh = (event) => {
+      if (event.key === 'gengreen_task_refresh') refreshTeacherTasks();
+    };
+    const handleVisibility = () => {
+      if (!document.hidden) refreshTeacherTasks();
+    };
+
+    window.addEventListener('gengreen-task-refresh', handleTaskRefresh);
+    window.addEventListener('storage', handleStorageRefresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('gengreen-task-refresh', handleTaskRefresh);
+      window.removeEventListener('storage', handleStorageRefresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [user?.className, user?.classId]);
 
   // Teacher tasks shown first (with a badge), then regular missions
   const allMissions = [...teacherTasks, ...missions];
@@ -655,7 +677,11 @@ export default function MissionsPage() {
           <VerificationModal
             mission={submitMission}
             onClose={() => setSubmitMission(null)}
-            onVerified={(id) => { completeMission(id); setSubmitMission(null); }}
+            onVerified={(id) => {
+              completeMission(id);
+              if (submitMission?.points) addPoints(Number(submitMission.points));
+              setSubmitMission(null);
+            }}
           />
         )}
       </AnimatePresence>

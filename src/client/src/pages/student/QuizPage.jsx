@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HelpCircle, CheckCircle2, XCircle, Zap, ChevronRight, RotateCcw, Trophy } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const fallbackQuizzes = [
   {
@@ -51,6 +52,7 @@ const fallbackQuizzes = [
 ];
 
 export default function QuizPage() {
+  const { addPoints } = useAuth();
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -83,6 +85,9 @@ export default function QuizPage() {
       setSelected(null);
       setAnswered(false);
     } else {
+      if (totalPoints > 0) {
+        addPoints(totalPoints);
+      }
       setFinished(true);
     }
   };

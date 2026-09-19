@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Puzzle, Clock, Award, Star, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const defaultCrosswordPuzzles = [
   {
@@ -46,6 +47,7 @@ function buildGrid(crosswordData) {
 }
 
 export default function CrosswordPage() {
+  const { addPoints } = useAuth();
   const topics = [...new Set(defaultCrosswordPuzzles.map((puzzle) => puzzle.topic))];
   const levels = ['Beginner', 'Intermediate', 'Advanced'];
   const [selectedTopic, setSelectedTopic] = useState(topics[0]);
@@ -118,6 +120,7 @@ export default function CrosswordPage() {
 
     setScore(pct);
     setEarnedPoints(totalPoints);
+    if (totalPoints > 0) addPoints(totalPoints);
     setIsRevealed(false);
     setCompleted(true);
   };
