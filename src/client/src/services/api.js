@@ -129,4 +129,9 @@ export const aiAPI = {
   chat: (data) => api.post('/ai/chat', data),
 };
 
+// Dashboard
+export const dashboardAPI = {
+  getStudent: (studentId) => api.get(`/dashboard/student/${studentId}`),
+};
+
 export default api;
