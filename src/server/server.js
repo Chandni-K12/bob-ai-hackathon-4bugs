@@ -128,27 +128,27 @@ app.post('/api/auth/login', async (req, res, next) => {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const normalizedRole = String(role || '').trim().toLowerCase();
 
-  const directUser = resolveAuthUser(normalizedEmail, normalizedRole);
-  if (directUser) {
-    return res.json(directUser);
+  if (db.hasDatabase) {
+    try {
+      const result = await db.query(
+        'SELECT * FROM users WHERE email = $1 AND role = $2 LIMIT 1',
+        [normalizedEmail, normalizedRole]
+      );
+      const user = mapUserRow(result.rows[0]);
+      if (user) {
+        return res.json({ token: 'mock_jwt_' + Date.now(), user });
+      }
+    } catch (err) {
+      console.log('DB auth fallback:', err.message);
+    }
   }
 
-  if (!db.hasDatabase) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+  const demoUser = resolveAuthUser(normalizedEmail, normalizedRole);
+  if (demoUser) {
+    return res.json(demoUser);
   }
 
-  try {
-    const result = await db.query(
-      'SELECT * FROM users WHERE email = $1 AND role = $2 LIMIT 1',
-      [normalizedEmail, normalizedRole]
-    );
-    const user = mapUserRow(result.rows[0]);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    return res.json({ token: 'mock_jwt_' + Date.now(), user });
-  } catch (err) {
-    console.log('DB auth fallback:', err.message);
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
+  return res.status(401).json({ error: 'Invalid credentials' });
 });
 
 app.get('/api/dashboard/student/:studentId', async (req, res) => {
@@ -504,10 +504,27 @@ app.get('/api/analytics/class/:id', async (req, res, next) => {
 });
 
 // --- AUTH ROUTES ---
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, role } = req.body || {};
-  const directUser = resolveAuthUser(email, role);
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedRole = String(role || '').trim().toLowerCase();
 
+  if (db.hasDatabase) {
+    try {
+      const result = await db.query(
+        'SELECT * FROM users WHERE email = $1 AND role = $2 LIMIT 1',
+        [normalizedEmail, normalizedRole]
+      );
+      const user = mapUserRow(result.rows[0]);
+      if (user) {
+        return res.json({ token: 'mock_jwt_' + Date.now(), user });
+      }
+    } catch (err) {
+      console.log('DB auth fallback:', err.message);
+    }
+  }
+
+  const directUser = resolveAuthUser(normalizedEmail, normalizedRole);
   if (!directUser) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
