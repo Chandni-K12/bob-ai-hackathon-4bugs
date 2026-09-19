@@ -104,8 +104,8 @@ def test_parse_normalises_unknown_learning_style():
 # Integration-style tests for get_personalized_recommendation
 # ---------------------------------------------------------------------------
 
-@patch.dict("os.environ", {"BOB_API_KEY": "fake-key"})
-@patch("services.mentor_service.run_bob", return_value=_GOOD_BOB_JSON)
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", return_value=_GOOD_BOB_JSON)
 def test_bob_success_returns_parsed_recommendation(mock_run_bob):
     """Happy path: Bob returns valid JSON → all four fields are correctly parsed."""
     req = _make_request()
@@ -117,8 +117,8 @@ def test_bob_success_returns_parsed_recommendation(mock_run_bob):
     assert result["learning_style"] == "scenario-based"
 
 
-@patch.dict("os.environ", {"BOB_API_KEY": "fake-key"})
-@patch("services.mentor_service.run_bob", side_effect=Exception("Connection timeout"))
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", side_effect=Exception("Connection timeout"))
 def test_bob_network_error_returns_unable_response(mock_run_bob):
     """Network failure → fallback response, no crash."""
     req = _make_request()
@@ -130,8 +130,8 @@ def test_bob_network_error_returns_unable_response(mock_run_bob):
     assert "learning_style" in result
 
 
-@patch.dict("os.environ", {"BOB_API_KEY": "fake-key"})
-@patch("services.mentor_service.run_bob", return_value="Sorry, I cannot help.")
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", return_value="Sorry, I cannot help.")
 def test_bob_unparseable_output_returns_unable_response(mock_run_bob):
     """Bob returns prose instead of JSON → fallback response."""
     req = _make_request()
@@ -145,7 +145,7 @@ def test_missing_credentials_returns_unable_response():
     """No env vars set → immediate fallback response, no network call attempted."""
     with patch.dict("os.environ", {}, clear=False):
         import os
-        saved_key = os.environ.pop("BOB_API_KEY", None)
+        saved_key = os.environ.pop("GEMINI_API_KEY", None)
         try:
             req = _make_request()
             result = get_personalized_recommendation(req)
@@ -153,11 +153,11 @@ def test_missing_credentials_returns_unable_response():
             assert "reason" in result
         finally:
             if saved_key is not None:
-                os.environ["BOB_API_KEY"] = saved_key
+                os.environ["GEMINI_API_KEY"] = saved_key
 
 
-@patch.dict("os.environ", {"BOB_API_KEY": "fake-key"})
-@patch("services.mentor_service.run_bob", return_value=json.dumps({
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"})
+@patch("services.mentor_service.generate_text", return_value=json.dumps({
     "recommended_topic": "Pollution",
     "reason": "Bob's personalised suggestion.",
     "recommended_mission": "Clean Air Challenge",

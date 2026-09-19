@@ -29,7 +29,7 @@ import re
 
 import requests as http_requests
 from dotenv import load_dotenv
-from bob_client import run_bob
+from gemini_client import generate_text
 
 load_dotenv()
 
@@ -248,10 +248,10 @@ def get_class_insights(class_id: str) -> dict:
         return {"class_id": class_id, "actions": [], "data_status": "insufficient"}
 
     # Step 2 — check Bob credentials before attempting a network call
-    api_key = os.environ.get("BOB_API_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY", "")
 
     if not api_key:
-        logger.warning("BOB_API_KEY not set — returning data-grounded fallback response.")
+        logger.warning("GEMINI_API_KEY not set — returning data-grounded fallback response.")
         return _fallback_insights(class_id, summary)
 
     # Step 3 — build compact, aggregate-only context (no student names)
@@ -265,7 +265,26 @@ def get_class_insights(class_id: str) -> dict:
 
     # Step 4 — call IBM Bob
     try:
-        raw_text = run_bob(prompt)
+        schema = {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "priority": {"type": "string", "enum": sorted(_VALID_PRIORITIES)},
+                            "title": {"type": "string"},
+                            "reason": {"type": "string"},
+                            "recommended_action": {"type": "string"},
+                        },
+                        "required": sorted(_ACTION_KEYS),
+                    },
+                },
+            },
+            "required": ["actions"],
+        }
+        raw_text = generate_text(prompt, response_schema=schema)
     except Exception as exc:
         logger.warning("IBM Bob call failed: %s — returning data-grounded fallback response.", exc)
         return _fallback_insights(class_id, summary)

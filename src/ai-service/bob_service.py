@@ -25,7 +25,7 @@ import re
 from typing import Optional
 
 from dotenv import load_dotenv
-from bob_client import run_bob
+from gemini_client import generate_text
 
 load_dotenv()
 
@@ -101,13 +101,21 @@ Respond ONLY with valid JSON in this exact format:
 # Bob API call — direct HTTP POST to BOB_API_ENDPOINT
 # ---------------------------------------------------------------------------
 
-def _call_bob(prompt: str) -> dict:
+def _call_gemini(prompt: str) -> dict:
     """
     Call IBM Bob via direct HTTP POST to the inference endpoint.
     Returns a parsed dict with student_explanation and teacher_explanation.
     Raises on any error so the caller can fall back gracefully.
     """
-    raw = run_bob(prompt)
+    schema = {
+        "type": "object",
+        "properties": {
+            "student_explanation": {"type": "string"},
+            "teacher_explanation": {"type": "string"},
+        },
+        "required": ["student_explanation", "teacher_explanation"],
+    }
+    raw = generate_text(prompt, response_schema=schema)
 
     # Strip optional markdown code fence that some model versions add
     clean = raw.strip()
@@ -196,9 +204,9 @@ def explain_verification(
     """
     needs_review = _BORDERLINE_LOW <= confidence <= _BORDERLINE_HIGH
 
-    api_key, *_ = _get_credentials()
+    api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
-        logger.warning("BOB_API_KEY not set — using fallback explanations for verify-image")
+        logger.warning("GEMINI_API_KEY not set — using fallback explanations for verify-image")
         explanations = _fallback_explanations(
             mission_type, detected_objects, confidence, verified
         )
@@ -212,9 +220,9 @@ def explain_verification(
     )
 
     try:
-        bob_result = _call_bob(prompt)
-        student_exp = bob_result.get("student_explanation", "").strip()
-        teacher_exp = bob_result.get("teacher_explanation", "").strip()
+        gemini_result = _call_gemini(prompt)
+        student_exp = gemini_result.get("student_explanation", "").strip()
+        teacher_exp = gemini_result.get("teacher_explanation", "").strip()
 
         # Guard: if Bob returns empty strings, fall back
         if not student_exp or not teacher_exp:

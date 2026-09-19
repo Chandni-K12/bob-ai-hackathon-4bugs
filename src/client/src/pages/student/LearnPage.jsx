@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { topicsAPI } from '../../services/api';
 import { BookOpen, Clock, Award, ChevronRight, Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
@@ -29,10 +30,12 @@ const normalizeTopic = (topic, index) => ({
 });
 
 export default function LearnPage() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [topics, setTopics] = useState(fallbackTopics);
+  const recommendedTopic = searchParams.get('topic')?.trim().toLowerCase();
 
   useEffect(() => {
     let active = true;
@@ -50,6 +53,15 @@ export default function LearnPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!recommendedTopic) return;
+    const matchingTopic = topics.find((topic) => {
+      const name = topic.name.toLowerCase();
+      return name === recommendedTopic || recommendedTopic.includes(name) || name.includes(recommendedTopic);
+    });
+    if (matchingTopic) setSelectedTopic(matchingTopic);
+  }, [recommendedTopic, topics]);
 
   const filtered = topics.filter((t) => {
     const matchSearch = t.name.toLowerCase().includes(search.toLowerCase());

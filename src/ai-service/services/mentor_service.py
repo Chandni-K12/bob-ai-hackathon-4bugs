@@ -22,7 +22,7 @@ import os
 import re
 
 from dotenv import load_dotenv
-from bob_client import run_bob
+from gemini_client import generate_text
 
 load_dotenv()
 
@@ -47,7 +47,7 @@ MISSION_MAP = {
 _UNABLE_RESPONSE_TEMPLATE = {
     "recommended_topic": "Unable to personalise right now",
     "reason": (
-        "IBM Bob is currently unavailable or returned an unexpected response. "
+        "Gemini is currently unavailable or returned an unexpected response. "
         "Please try again shortly."
     ),
     "recommended_mission": "Eco Explorer",
@@ -95,10 +95,10 @@ def get_personalized_recommendation(req) -> dict:
     raising an error.
     """
     # Step 1 — check credentials exist before attempting a network call
-    api_key = os.environ.get("BOB_API_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY", "")
 
     if not api_key:
-        logger.warning("BOB_API_KEY not set — returning deterministic fallback response.")
+        logger.warning("GEMINI_API_KEY not set — returning deterministic fallback response.")
         return _fallback(req)
 
     # Step 2 — build compact, student-scoped context
@@ -113,7 +113,17 @@ def get_personalized_recommendation(req) -> dict:
 
     # Step 3 — call IBM Bob
     try:
-        raw_text = run_bob(prompt)
+        schema = {
+            "type": "object",
+            "properties": {
+                "recommended_topic": {"type": "string"},
+                "reason": {"type": "string"},
+                "recommended_mission": {"type": "string"},
+                "learning_style": {"type": "string", "enum": sorted(_VALID_LEARNING_STYLES)},
+            },
+            "required": sorted(_REQUIRED_KEYS),
+        }
+        raw_text = generate_text(prompt, response_schema=schema)
     except Exception as exc:
         logger.warning("IBM Bob call failed: %s — returning deterministic fallback response.", exc)
         return _fallback(req)

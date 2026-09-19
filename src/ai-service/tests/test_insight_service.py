@@ -88,9 +88,9 @@ def _mock_summary(summary=_GOOD_SUMMARY):
     return patch("services.insight_service._fetch_class_summary", return_value=summary)
 
 def _mock_bob(text):
-    return patch("services.insight_service.requests.post", return_value=_FakeResponse(text))
+    return patch("services.insight_service.generate_text", return_value=text)
 
-_CREDS_ENV = {"BOB_API_KEY": "fake-key", "BOB_API_ENDPOINT": "https://us-south.ml.cloud.ibm.com"}
+_CREDS_ENV = {"GEMINI_API_KEY": "fake-key"}
 
 def _mock_creds():
     return patch.dict("os.environ", _CREDS_ENV)
@@ -126,11 +126,11 @@ def test_prompt_contains_no_student_names():
     """
     captured = {}
 
-    def mock_post(*args, **kwargs):
-        captured["prompt"] = kwargs.get("json", {}).get("input", "")
-        return _FakeResponse(_good_bob_json(_THREE_ACTIONS[:1]))
+    def mock_generate(prompt, **kwargs):
+        captured["prompt"] = prompt
+        return _good_bob_json(_THREE_ACTIONS[:1])
 
-    with _mock_summary(), patch("services.insight_service.requests.post", side_effect=mock_post):
+    with _mock_summary(), patch("services.insight_service.generate_text", side_effect=mock_generate):
         get_class_insights("c1")
 
     prompt = captured.get("prompt", "")
@@ -185,14 +185,14 @@ def test_missing_credentials_returns_unavailable():
     """No BOB_API_KEY → fallback data-grounded response."""
     with _mock_summary():
         with patch.dict(os.environ, {}, clear=False):
-            saved_key = os.environ.pop("BOB_API_KEY", None)
+            saved_key = os.environ.pop("GEMINI_API_KEY", None)
             try:
                 result = get_class_insights("c1")
                 assert result["data_status"] == "sufficient"
                 assert len(result["actions"]) > 0
                 assert result["class_id"] == "c1"
             finally:
-                if saved_key: os.environ["BOB_API_KEY"] = saved_key
+                if saved_key: os.environ["GEMINI_API_KEY"] = saved_key
 
 
 # ---------------------------------------------------------------------------
@@ -315,8 +315,8 @@ def test_parse_json_inside_markdown_fence():
 _BOB_CALL_SENTINEL = "BOB_WAS_CALLED"
 
 def _bob_sentinel():
-    """Patch requests.post so the test fails loudly if Bob is reached."""
-    return patch("services.insight_service.requests.post", side_effect=AssertionError(_BOB_CALL_SENTINEL))
+    """Fail loudly if Gemini is called for an insufficient summary."""
+    return patch("services.insight_service.generate_text", side_effect=AssertionError(_BOB_CALL_SENTINEL))
 
 
 @pytest.mark.parametrize("sparse_summary", [

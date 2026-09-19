@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from dotenv import load_dotenv
-from bob_client import run_bob
+from gemini_client import generate_text
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -156,9 +156,9 @@ def _smart_eco_fallback(message: str) -> str:
 
 def get_chat_reply(message: str) -> str:
     """
-    Call IBM Bob to answer student questions. Falls back to smart responder if Bob fails.
+    Call Gemini to answer student questions. Falls back to smart responder if Gemini fails.
     """
-    api_key = os.environ.get("BOB_API_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY", "")
 
     prompt = (
         "You are an AI Eco Mentor for school students on GenGreen, an environmental education platform.\n"
@@ -169,11 +169,11 @@ def get_chat_reply(message: str) -> str:
 
     if api_key:
         try:
-            raw_text = run_bob(prompt)
+            raw_text = generate_text(prompt)
             if raw_text:
                 return raw_text
         except Exception as exc:
-            logger.warning("IBM Bob chat call failed: %s — using smart fallback", exc)
+            logger.warning("Gemini chat call failed: %s — using smart fallback", exc)
 
     return _smart_eco_fallback(message)
 
